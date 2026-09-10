@@ -1,29 +1,41 @@
 extends CanvasLayer
 
 # Browser/mobile playtest adapter. Blackroot Hollow remains a Steam/PC-first game.
-# This layer exists so human playtests can happen quickly from a phone without
-# changing the desktop combat implementation or release target.
+# Phone testing is deliberately landscape-first so the combat field stays readable.
 
 const GAME_SIZE := Vector2(320.0, 180.0)
-const MOVE_ZONE := Rect2(8.0, 103.0, 120.0, 68.0)
-const ATTACK_ZONE := Rect2(254.0, 112.0, 58.0, 38.0)
-const DODGE_ZONE := Rect2(202.0, 139.0, 48.0, 30.0)
-const PAUSE_ZONE := Rect2(272.0, 28.0, 40.0, 22.0)
-const MOVE_RADIUS := 32.0
+
+# Hit areas stay generous; visuals are intentionally smaller so they do not bury the playfield.
+const MOVE_ZONE := Rect2(6.0, 112.0, 104.0, 62.0)
+const MOVE_VISUAL := Rect2(14.0, 124.0, 76.0, 42.0)
+const ATTACK_ZONE := Rect2(250.0, 112.0, 66.0, 60.0)
+const ATTACK_VISUAL := Rect2(264.0, 124.0, 44.0, 36.0)
+const DODGE_ZONE := Rect2(194.0, 128.0, 62.0, 46.0)
+const DODGE_VISUAL := Rect2(208.0, 139.0, 42.0, 28.0)
+const PAUSE_ZONE := Rect2(268.0, 6.0, 48.0, 28.0)
+const PAUSE_VISUAL := Rect2(276.0, 10.0, 36.0, 20.0)
+const MOVE_RADIUS := 30.0
 
 var touch_device := false
 var move_touch_id := -1
 var attack_touch_id := -1
 var move_origin := Vector2.ZERO
 var move_vector := Vector2.ZERO
+
 var hud: Control
 var move_label: Label
+var attack_label: Label
+var dodge_label: Label
+var pause_label: Label
+var last_layout_state := -1
+var gameplay_panel_style: StyleBoxFlat
 
 func _ready() -> void:
     layer = 50
     process_mode = Node.PROCESS_MODE_ALWAYS
     touch_device = _detect_touch_device()
     if touch_device:
+        _build_styles()
         _build_hud()
         hud.visible = false
     set_process(touch_device)
@@ -35,11 +47,17 @@ func _detect_touch_device() -> bool:
 func _process(delta: float) -> void:
     var game: Node = get_tree().current_scene
     var gameplay_active := _is_gameplay_active(game)
+    _sync_mobile_layout(game, gameplay_active)
+
     if hud != null:
         hud.visible = gameplay_active
     if not gameplay_active:
         _reset_touches()
         return
+
+    if pause_label != null:
+        pause_label.text = "RESUME" if get_tree().paused else "PAUSE"
+
     if get_tree().paused:
         return
 
@@ -74,20 +92,24 @@ func _input(event: InputEvent) -> void:
                     game.call("_toggle_pause")
                 get_viewport().set_input_as_handled()
                 return
+
             if get_tree().paused:
                 return
+
             if MOVE_ZONE.has_point(game_position) and move_touch_id < 0:
                 move_touch_id = touch.index
                 move_origin = game_position
                 move_vector = Vector2.ZERO
                 get_viewport().set_input_as_handled()
                 return
+
             if DODGE_ZONE.has_point(game_position):
                 var dodge_player := _get_player(game)
                 if dodge_player != null and dodge_player.has_method("try_dodge"):
                     dodge_player.call("try_dodge")
                 get_viewport().set_input_as_handled()
                 return
+
             if ATTACK_ZONE.has_point(game_position) and attack_touch_id < 0:
                 attack_touch_id = touch.index
                 var attack_player := _get_player(game)
@@ -132,6 +154,64 @@ func _get_player(game: Node) -> Node2D:
         return candidate as Node2D
     return null
 
+func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
+    if game == null:
+        return
+
+    var desired_state := 1 if gameplay_active else 0
+    if desired_state == last_layout_state:
+        return
+    last_layout_state = desired_state
+
+    var root_ui_value: Variant = game.get("root_ui")
+    if not (root_ui_value is CanvasLayer):
+        return
+    var ui_layer := root_ui_value as CanvasLayer
+    if ui_layer.get_child_count() == 0:
+        return
+    var panel := ui_layer.get_child(0) as PanelContainer
+    if panel == null:
+        return
+
+    var footer_value: Variant = game.get("footer_label")
+    var title_value: Variant = game.get("title_label")
+    var subtitle_value: Variant = game.get("subtitle_label")
+    var info_value: Variant = game.get("info_label")
+
+    if gameplay_active:
+        panel.position = Vector2(8, 5)
+        panel.size = Vector2(304, 68)
+        panel.add_theme_stylebox_override("panel", gameplay_panel_style)
+
+        if footer_value is Label:
+            var footer := footer_value as Label
+            footer.visible = false
+        if title_value is Label:
+            (title_value as Label).add_theme_font_size_override("font_size", 12)
+        if subtitle_value is Label:
+            (subtitle_value as Label).add_theme_font_size_override("font_size", 7)
+        if info_value is Label:
+            var info := info_value as Label
+            info.add_theme_font_size_override("font_size", 7)
+            info.custom_minimum_size = Vector2(0, 20)
+    else:
+        panel.position = Vector2(8, 7)
+        panel.size = Vector2(304, 166)
+        panel.remove_theme_stylebox_override("panel")
+
+        if footer_value is Label:
+            var footer := footer_value as Label
+            footer.visible = true
+            footer.text = "Tap options • rotate to landscape for combat"
+        if title_value is Label:
+            (title_value as Label).add_theme_font_size_override("font_size", 15)
+        if subtitle_value is Label:
+            (subtitle_value as Label).add_theme_font_size_override("font_size", 8)
+        if info_value is Label:
+            var info := info_value as Label
+            info.add_theme_font_size_override("font_size", 8)
+            info.custom_minimum_size = Vector2(0, 32)
+
 func _reset_touches() -> void:
     move_touch_id = -1
     attack_touch_id = -1
@@ -148,6 +228,19 @@ func _to_game_position(screen_position: Vector2) -> Vector2:
     var offset := (visible_size - rendered_size) * 0.5
     return (screen_position - offset) / fit_scale
 
+func _build_styles() -> void:
+    gameplay_panel_style = StyleBoxFlat.new()
+    gameplay_panel_style.bg_color = Color(0.02, 0.035, 0.028, 0.76)
+    gameplay_panel_style.border_color = Color(0.25, 0.34, 0.22, 0.68)
+    gameplay_panel_style.border_width_left = 1
+    gameplay_panel_style.border_width_top = 1
+    gameplay_panel_style.border_width_right = 1
+    gameplay_panel_style.border_width_bottom = 1
+    gameplay_panel_style.corner_radius_top_left = 3
+    gameplay_panel_style.corner_radius_top_right = 3
+    gameplay_panel_style.corner_radius_bottom_left = 3
+    gameplay_panel_style.corner_radius_bottom_right = 3
+
 func _build_hud() -> void:
     hud = Control.new()
     hud.position = Vector2.ZERO
@@ -155,10 +248,10 @@ func _build_hud() -> void:
     hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(hud)
 
-    move_label = _make_label("MOVE\nDRAG", MOVE_ZONE, 8)
-    _make_label("ATTACK", ATTACK_ZONE, 8)
-    _make_label("DODGE", DODGE_ZONE, 7)
-    _make_label("PAUSE", PAUSE_ZONE, 6)
+    move_label = _make_label("MOVE", MOVE_VISUAL, 7)
+    attack_label = _make_label("ATTACK", ATTACK_VISUAL, 7)
+    dodge_label = _make_label("DODGE", DODGE_VISUAL, 6)
+    pause_label = _make_label("PAUSE", PAUSE_VISUAL, 5)
 
 func _make_label(text_value: String, rect: Rect2, font_size: int) -> Label:
     var label := Label.new()
@@ -171,8 +264,8 @@ func _make_label(text_value: String, rect: Rect2, font_size: int) -> Label:
     label.add_theme_font_size_override("font_size", font_size)
 
     var style := StyleBoxFlat.new()
-    style.bg_color = Color(0.025, 0.045, 0.035, 0.72)
-    style.border_color = Color(0.58, 0.72, 0.46, 0.88)
+    style.bg_color = Color(0.018, 0.035, 0.028, 0.48)
+    style.border_color = Color(0.58, 0.72, 0.46, 0.78)
     style.border_width_left = 1
     style.border_width_top = 1
     style.border_width_right = 1
