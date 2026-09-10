@@ -29,6 +29,7 @@ default_bus_layout="res://default_bus_layout.tres"
 SaveManager="*res://scripts/save_manager.gd"
 AudioManager="*res://scripts/audio_manager.gd"
 TouchPlaytest="*res://scripts/touch_playtest.gd"
+MenuFocus="*res://scripts/menu_focus.gd"
 
 [input_devices]
 pointing/emulate_mouse_from_touch=true

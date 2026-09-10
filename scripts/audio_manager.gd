@@ -8,6 +8,7 @@ var cache: Dictionary = {}
 func _ready() -> void:
     for _i in range(6):
         var player := AudioStreamPlayer.new()
+        player.bus = "SFX"
         add_child(player)
         players.append(player)
 

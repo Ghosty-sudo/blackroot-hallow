@@ -9,19 +9,29 @@ const STATE_GAMEOVER := 5
 const STATE_VICTORY := 6
 const STATE_SETTINGS := 7
 
+const HP_UPGRADE_CAP := 5
+const DAMAGE_UPGRADE_CAP := 4
+
 var state: int = STATE_TITLE
 var player: BlackrootPlayer
 var enemies: Array[BlackrootEnemy] = []
 var depth: int = 1
 var wave: int = 0
 var run_amber: int = 0
+var run_banked_amber: int = 0
+var run_kills: int = 0
 var selected_mark: Dictionary = {}
 var selected_weapon: Dictionary = {}
 var attack_flash: float = 0.0
 var banner_timer: float = 0.0
 var message: String = ""
+var hub_notice: String = ""
 var high_contrast: bool = false
 var settings_return_state: int = STATE_TITLE
+var settings_return_paused: bool = false
+var last_run_depth: int = 0
+var last_run_kills: int = 0
+var last_run_amber_banked: int = 0
 var shake_time: float = 0.0
 var shake_strength: float = 0.0
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -64,7 +74,11 @@ func _process(delta: float) -> void:
         queue_redraw()
         return
     attack_flash = maxf(0.0, attack_flash - delta)
-    banner_timer = maxf(0.0, banner_timer - delta)
+    if banner_timer > 0.0:
+        banner_timer = maxf(0.0, banner_timer - delta)
+        if banner_timer <= 0.0:
+            message = ""
+            _refresh_info()
     shake_time = maxf(0.0, shake_time - delta)
     if shake_time > 0.0 and bool(SaveManager.settings.get("screen_shake", true)):
         position = Vector2(rng.randf_range(-shake_strength, shake_strength), rng.randf_range(-shake_strength, shake_strength))
@@ -82,14 +96,26 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
         if event.keycode == KEY_ESCAPE:
-            if state == STATE_RUN:
-                _toggle_pause()
-            elif state == STATE_SETTINGS:
-                _leave_settings()
+            _handle_back_input()
         elif event.keycode == KEY_ENTER and state == STATE_TITLE:
             _show_hub()
-    if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_START and state == STATE_RUN:
+    if event is InputEventJoypadButton and event.pressed:
+        if event.button_index == JOY_BUTTON_START and state == STATE_RUN:
+            _toggle_pause()
+        elif event.button_index == JOY_BUTTON_B and state != STATE_RUN:
+            _handle_back_input()
+
+func _handle_back_input() -> void:
+    if state == STATE_RUN:
         _toggle_pause()
+    elif state == STATE_SETTINGS:
+        _leave_settings()
+    elif state == STATE_MARKS:
+        _show_weapons()
+    elif state == STATE_WEAPONS:
+        _show_hub()
+    elif state == STATE_HUB:
+        _show_title()
 
 func _attack_pressed() -> bool:
     return Input.is_key_pressed(KEY_SPACE) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)
@@ -98,9 +124,52 @@ func _dodge_pressed() -> bool:
     return Input.is_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B)
 
 func _toggle_pause() -> void:
-    get_tree().paused = not get_tree().paused
-    message = "PAUSED — Esc/Start to resume" if get_tree().paused else ""
+    if get_tree().paused:
+        _resume_run()
+        return
+    if state != STATE_RUN or not is_instance_valid(player):
+        return
+    get_tree().paused = true
+    _show_pause_menu()
+
+func _show_pause_menu() -> void:
+    if state != STATE_RUN or not is_instance_valid(player):
+        return
+    _clear_menu()
+    title_label.text = "PAUSED"
+    subtitle_label.text = "%s • %s" % [String(selected_weapon.get("name", "Weapon")), String(selected_mark.get("name", "Rootmark"))]
+    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked Amber %d" % [player.hp, player.max_hp, depth, wave, run_amber]
+    _button("RESUME EXPEDITION", _resume_run)
+    _button("RESTART — SAME LOADOUT", _restart_current_run)
+    _button("SETTINGS", _show_settings)
+    _button("ABANDON TO WARDEN'S REST", _abandon_run)
+    footer_label.text = "Esc/Start resumes • restarting or abandoning loses unbanked Amber"
+
+func _resume_run() -> void:
+    if state != STATE_RUN or not is_instance_valid(player):
+        return
+    get_tree().paused = false
+    _restore_run_ui()
+
+func _restore_run_ui() -> void:
+    _clear_menu()
+    title_label.text = String(biome_data[clampi(depth - 1, 0, biome_data.size() - 1)].get("name", "THE HOLLOW"))
+    subtitle_label.text = "%s • Rootmark: %s" % [String(selected_weapon.get("name", "Weapon")), String(selected_mark.get("name", "Rootmark"))]
+    footer_label.text = "WASD/Arrows move • Space/LMB/A attack • Shift/B dodge • Esc/Start pause"
     _refresh_info()
+
+func _restart_current_run() -> void:
+    get_tree().paused = false
+    if selected_weapon.is_empty() or selected_mark.is_empty():
+        _show_hub()
+        return
+    _clear_world()
+    _start_run(selected_mark.duplicate(true))
+
+func _abandon_run() -> void:
+    get_tree().paused = false
+    hub_notice = "Expedition abandoned. Unbanked Amber was lost."
+    _show_hub()
 
 func _build_ui() -> void:
     root_ui = CanvasLayer.new()
@@ -146,11 +215,14 @@ func _button(text: String, callback: Callable) -> void:
     button.text = text
     button.add_theme_font_size_override("font_size", 8)
     button.custom_minimum_size = Vector2(0, 18)
+    button.focus_mode = Control.FOCUS_ALL
     button.pressed.connect(func() -> void:
         AudioManager.play_sfx("ui")
         callback.call()
     )
     menu_box.add_child(button)
+    if menu_box.get_child_count() == 1:
+        button.call_deferred("grab_focus")
 
 func _show_title() -> void:
     state = STATE_TITLE
@@ -159,37 +231,56 @@ func _show_title() -> void:
     _clear_menu()
     title_label.text = "BLACKROOT HOLLOW"
     subtitle_label.text = "Power always takes something back."
-    info_label.text = "Descend beneath Warden's Rest. Bind cursed Rootmarks, carve through the living root network, and return stronger."
+    info_label.text = "Descend beneath Warden's Rest. Bind a cursed Rootmark, survive the guardians, bank Root Amber, and return stronger."
     _button("BEGIN", _show_hub)
     _button("SETTINGS", _show_settings)
     if not OS.has_feature("web"):
         _button("QUIT", func() -> void: get_tree().quit())
     footer_label.visible = true
+    footer_label.text = "Enter/A confirms • Esc/B backs out • mouse/touch supported"
 
 func _show_hub() -> void:
     state = STATE_HUB
+    get_tree().paused = false
     _clear_world()
     _clear_menu()
     title_label.text = "WARDEN'S REST"
-    subtitle_label.text = "The roots below the town are awake."
+    subtitle_label.text = "Prepare, spend what you saved, then descend."
     var data: Dictionary = SaveManager.save_data
-    info_label.text = "Root Amber: %d • Vitality +%d • Damage +%d • Best Depth %d • Wins %d" % [int(data.get("root_amber", 0)), int(data.get("max_hp_bonus", 0)), int(data.get("damage_bonus", 0)), int(data.get("best_depth", 0)), int(data.get("wins", 0))]
+    var hp_rank := int(data.get("max_hp_bonus", 0))
+    var damage_rank := int(data.get("damage_bonus", 0))
+    var hp_state := "MAX" if hp_rank >= HP_UPGRADE_CAP else "%d/%d" % [hp_rank, HP_UPGRADE_CAP]
+    var damage_state := "MAX" if damage_rank >= DAMAGE_UPGRADE_CAP else "%d/%d" % [damage_rank, DAMAGE_UPGRADE_CAP]
+    info_label.text = "Amber %d • Vitality %s (+%d HP) • Edge %s (+%d damage) • Best Depth %d • Clears %d" % [int(data.get("root_amber", 0)), hp_state, hp_rank, damage_state, damage_rank, int(data.get("best_depth", 0)), int(data.get("wins", 0))]
+    if hub_notice != "":
+        info_label.text += "\n" + hub_notice
+        hub_notice = ""
     _button("DESCEND INTO THE HOLLOW", _show_weapons)
-    _button("GROW VITALITY — 8 Amber", _buy_hp)
-    _button("HONE WEAPON — 10 Amber", _buy_damage)
+    if hp_rank < HP_UPGRADE_CAP:
+        _button("GROW VITALITY (+1 HP) — %d AMBER" % _hp_upgrade_cost(), _buy_hp)
+    if damage_rank < DAMAGE_UPGRADE_CAP:
+        _button("HONE WEAPON (+1 DAMAGE) — %d AMBER" % _damage_upgrade_cost(), _buy_damage)
     _button("SETTINGS", _show_settings)
     _button("TITLE", _show_title)
+    footer_label.text = "Permanent upgrades are capped; Rootmark tradeoffs remain the core power choice."
+
+func _hp_upgrade_cost() -> int:
+    return 8 + int(SaveManager.save_data.get("max_hp_bonus", 0)) * 4
+
+func _damage_upgrade_cost() -> int:
+    return 10 + int(SaveManager.save_data.get("damage_bonus", 0)) * 6
 
 func _show_weapons() -> void:
     state = STATE_WEAPONS
     _clear_menu()
     title_label.text = "CHOOSE A WEAPON"
-    subtitle_label.text = "Your reach changes the shape of every bargain."
-    info_label.text = "Three combat rhythms are available in this vertical slice."
+    subtitle_label.text = "Choose your combat rhythm for this expedition."
+    info_label.text = "Blade is balanced. Pike controls space. Cleaver rewards committed heavy hits. You can change weapons between expeditions."
     for item: Dictionary in weapons:
         var copy: Dictionary = item.duplicate(true)
         _button("%s — %s" % [String(item.get("name", "Weapon")), String(item.get("desc", ""))], _choose_weapon.bind(copy))
     _button("BACK", _show_hub)
+    footer_label.text = "Pick for feel, not permanence."
 
 func _choose_weapon(chosen: Dictionary) -> void:
     selected_weapon = chosen
@@ -200,18 +291,24 @@ func _show_marks() -> void:
     _clear_menu()
     title_label.text = "CHOOSE A ROOTMARK"
     subtitle_label.text = "Every gift from the Hollow has teeth."
-    info_label.text = "Weapon: %s. Pick one blessing/curse for this expedition." % String(selected_weapon.get("name", "Unknown"))
+    info_label.text = "Weapon: %s. Choose one bargain: each blessing comes with a cost that changes how safely you can fight." % String(selected_weapon.get("name", "Unknown"))
     for mark: Dictionary in marks:
         var copy: Dictionary = mark.duplicate(true)
         _button("%s — %s" % [String(mark.get("name", "Rootmark")), String(mark.get("desc", ""))], _start_run.bind(copy))
     _button("BACK", _show_weapons)
+    footer_label.text = "Rootmarks last for one expedition."
 
 func _start_run(mark: Dictionary) -> void:
-    selected_mark = mark
+    selected_mark = mark.duplicate(true)
     state = STATE_RUN
+    get_tree().paused = false
     depth = 1
     wave = 0
     run_amber = 0
+    run_banked_amber = 0
+    run_kills = 0
+    message = ""
+    banner_timer = 0.0
     _clear_menu()
     title_label.text = String(biome_data[0].get("name", "THE HOLLOW"))
     subtitle_label.text = "%s • Rootmark: %s" % [String(selected_weapon.get("name", "Weapon")), String(selected_mark.get("name", "Rootmark"))]
@@ -226,16 +323,20 @@ func _start_run(mark: Dictionary) -> void:
     if not bool(SaveManager.save_data.get("tutorial_seen", false)):
         SaveManager.save_data["tutorial_seen"] = true
         SaveManager.save_progress()
-        message = "MOVE • ATTACK • DODGE. Yellow/red boss tells mean GET OUT."
-        banner_timer = 5.0
+        message = "MOVE • ATTACK • DODGE • clear three encounters, then read the guardian tell."
+        banner_timer = 6.0
     _spawn_wave()
     _refresh_info()
 
 func _spawn_wave() -> void:
     wave += 1
     var is_boss_wave: bool = wave % 4 == 0
-    message = "BRIAR WARDEN — watch the charge tell" if is_boss_wave else "Depth %d — Encounter %d" % [depth, wave]
-    banner_timer = 1.7
+    if banner_timer <= 0.0:
+        message = "BRIAR WARDEN — watch the charge tell" if is_boss_wave else "Encounter %d/4" % wave
+        banner_timer = 1.8
+    elif is_boss_wave:
+        message = "BRIAR WARDEN — watch the charge tell"
+        banner_timer = 2.4
     if is_boss_wave:
         _spawn_enemy("briar_warden", Vector2(160, 55))
     else:
@@ -280,6 +381,7 @@ func _do_attack() -> void:
 func _on_enemy_killed(enemy: BlackrootEnemy, reward: int) -> void:
     enemies.erase(enemy)
     run_amber += reward
+    run_kills += 1
     _refresh_info()
 
 func _on_player_hurt(_amount: int) -> void:
@@ -294,10 +396,14 @@ func _start_shake(duration: float, strength: float) -> void:
 func _advance_encounter() -> void:
     if wave % 4 == 0:
         SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) + run_amber
+        run_banked_amber += run_amber
         SaveManager.save_data["best_depth"] = maxi(int(SaveManager.save_data.get("best_depth", 0)), depth)
         if depth >= 3:
             SaveManager.save_data["wins"] = int(SaveManager.save_data.get("wins", 0)) + 1
             SaveManager.save_progress()
+            last_run_depth = depth
+            last_run_kills = run_kills
+            last_run_amber_banked = run_banked_amber
             _show_victory()
             return
         depth += 1
@@ -308,80 +414,128 @@ func _advance_encounter() -> void:
             player.hp = player.max_hp
             player.hp_changed.emit(player.hp, player.max_hp)
         title_label.text = String(biome_data[depth - 1].get("name", "THE HOLLOW"))
-        message = "ROOT VEIN CLEARED — DESCENDING"
-        banner_timer = 2.0
+        message = "ROOT VEIN CLEARED — Amber banked, health restored."
+        banner_timer = 2.6
     _spawn_wave()
 
 func _on_player_died() -> void:
-    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) + int(run_amber / 2)
+    var recovered := int(run_amber / 2)
+    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) + recovered
     SaveManager.save_data["best_depth"] = maxi(int(SaveManager.save_data.get("best_depth", 0)), depth)
     SaveManager.save_progress()
+    last_run_depth = depth
+    last_run_kills = run_kills
+    last_run_amber_banked = run_banked_amber + recovered
     state = STATE_GAMEOVER
     _clear_world()
     _clear_menu()
     title_label.text = "THE HOLLOW CLAIMED YOU"
-    subtitle_label.text = "Half of the unbanked amber made it back to town."
-    info_label.text = "Death is a setback, not a wipe. Spend what survived and choose a new weapon/Rootmark pairing."
+    subtitle_label.text = "Half of your unbanked Amber made it back."
+    info_label.text = "Reached Depth %d/3 • Defeated %d • Amber secured %d\nRead what killed you, adjust the bargain, or retry the same loadout immediately." % [last_run_depth, last_run_kills, last_run_amber_banked]
+    _button("RETRY — SAME LOADOUT", _retry_same_loadout)
     _button("RETURN TO WARDEN'S REST", _show_hub)
     _button("TITLE", _show_title)
+    footer_label.text = "Death keeps banked progress; only unbanked Amber is at risk."
 
 func _show_victory() -> void:
     state = STATE_VICTORY
     _clear_world()
     _clear_menu()
     title_label.text = "THE HEARTWOOD BREAKS"
-    subtitle_label.text = "Vertical-slice campaign clear."
-    info_label.text = "The technical loop is complete. Production content, final art/audio, narrative closure, achievements, Steamworks integration, and release QA still gate 1.0."
+    subtitle_label.text = "The three root veins fall quiet — for now."
+    info_label.text = "Cleared Depth 3/3 • Defeated %d • Amber secured %d\nReturn stronger, change your bargain, or descend again with the same loadout." % [last_run_kills, last_run_amber_banked]
+    _button("DESCEND AGAIN — SAME LOADOUT", _retry_same_loadout)
     _button("RETURN TO WARDEN'S REST", _show_hub)
     _button("TITLE", _show_title)
+    footer_label.text = "A clear is progress, not an endpoint."
+
+func _retry_same_loadout() -> void:
+    if selected_weapon.is_empty() or selected_mark.is_empty():
+        _show_hub()
+        return
+    _clear_world()
+    _start_run(selected_mark.duplicate(true))
 
 func _buy_hp() -> void:
-    if int(SaveManager.save_data.get("root_amber", 0)) < 8:
-        info_label.text = "Not enough Root Amber."
+    var rank := int(SaveManager.save_data.get("max_hp_bonus", 0))
+    if rank >= HP_UPGRADE_CAP:
+        hub_notice = "Vitality is already at its current cap."
+        _show_hub()
         return
-    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - 8
-    SaveManager.save_data["max_hp_bonus"] = int(SaveManager.save_data.get("max_hp_bonus", 0)) + 1
+    var cost := _hp_upgrade_cost()
+    if int(SaveManager.save_data.get("root_amber", 0)) < cost:
+        info_label.text = "Need %d Amber for +1 maximum HP. You have %d." % [cost, int(SaveManager.save_data.get("root_amber", 0))]
+        return
+    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - cost
+    SaveManager.save_data["max_hp_bonus"] = rank + 1
     SaveManager.save_progress()
+    hub_notice = "Vitality grew to rank %d/%d. Maximum HP increased by 1." % [rank + 1, HP_UPGRADE_CAP]
     _show_hub()
 
 func _buy_damage() -> void:
-    if int(SaveManager.save_data.get("root_amber", 0)) < 10:
-        info_label.text = "Not enough Root Amber."
+    var rank := int(SaveManager.save_data.get("damage_bonus", 0))
+    if rank >= DAMAGE_UPGRADE_CAP:
+        hub_notice = "Weapon Edge is already at its current cap."
+        _show_hub()
         return
-    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - 10
-    SaveManager.save_data["damage_bonus"] = int(SaveManager.save_data.get("damage_bonus", 0)) + 1
+    var cost := _damage_upgrade_cost()
+    if int(SaveManager.save_data.get("root_amber", 0)) < cost:
+        info_label.text = "Need %d Amber for +1 base damage. You have %d." % [cost, int(SaveManager.save_data.get("root_amber", 0))]
+        return
+    SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - cost
+    SaveManager.save_data["damage_bonus"] = rank + 1
     SaveManager.save_progress()
+    hub_notice = "Weapon Edge reached rank %d/%d. Base damage increased by 1." % [rank + 1, DAMAGE_UPGRADE_CAP]
     _show_hub()
 
 func _show_settings() -> void:
     if state != STATE_SETTINGS:
         settings_return_state = state
+        settings_return_paused = get_tree().paused
     state = STATE_SETTINGS
     _clear_menu()
     title_label.text = "SETTINGS"
-    subtitle_label.text = "PC-first basics."
-    info_label.text = "Settings persist immediately."
-    var volume: int = int(round(float(SaveManager.settings.get("master_volume", 0.8)) * 100.0))
-    _button("MASTER VOLUME: %d%%" % volume, _cycle_volume)
-    _button("FULLSCREEN: %s" % ("ON" if bool(SaveManager.settings.get("fullscreen", false)) else "OFF"), _toggle_fullscreen)
+    subtitle_label.text = "Make the Hollow readable and comfortable."
+    info_label.text = "Changes save immediately."
+    var master_volume: int = int(round(float(SaveManager.settings.get("master_volume", 0.8)) * 100.0))
+    var sfx_volume: int = int(round(float(SaveManager.settings.get("sfx_volume", 0.9)) * 100.0))
+    _button("MASTER VOLUME: %d%%" % master_volume, _cycle_master_volume)
+    _button("SFX VOLUME: %d%%" % sfx_volume, _cycle_sfx_volume)
+    if not OS.has_feature("web"):
+        _button("FULLSCREEN: %s" % ("ON" if bool(SaveManager.settings.get("fullscreen", false)) else "OFF"), _toggle_fullscreen)
     _button("SCREEN SHAKE: %s" % ("ON" if bool(SaveManager.settings.get("screen_shake", true)) else "OFF"), _toggle_shake)
     _button("HIGH CONTRAST: %s" % ("ON" if bool(SaveManager.settings.get("high_contrast", false)) else "OFF"), _toggle_contrast)
     _button("REDUCE FLASHES: %s" % ("ON" if bool(SaveManager.settings.get("reduce_flashes", false)) else "OFF"), _toggle_flashes)
     _button("BACK", _leave_settings)
+    footer_label.text = "Each volume button steps 20% and wraps from 0% back to 100%."
 
 func _leave_settings() -> void:
-    if settings_return_state == STATE_HUB:
+    if settings_return_state == STATE_RUN and is_instance_valid(player):
+        state = STATE_RUN
+        if settings_return_paused:
+            get_tree().paused = true
+            _show_pause_menu()
+        else:
+            get_tree().paused = false
+            _restore_run_ui()
+    elif settings_return_state == STATE_HUB:
         _show_hub()
     else:
         _show_title()
 
-func _cycle_volume() -> void:
-    var value: float = float(SaveManager.settings.get("master_volume", 0.8)) - 0.2
+func _cycle_setting_volume(key: String, fallback: float) -> void:
+    var value: float = float(SaveManager.settings.get(key, fallback)) - 0.2
     if value < 0.0:
         value = 1.0
-    SaveManager.settings["master_volume"] = snappedf(value, 0.2)
+    SaveManager.settings[key] = snappedf(value, 0.2)
     SaveManager.save_settings()
     _show_settings()
+
+func _cycle_master_volume() -> void:
+    _cycle_setting_volume("master_volume", 0.8)
+
+func _cycle_sfx_volume() -> void:
+    _cycle_setting_volume("sfx_volume", 0.9)
 
 func _toggle_fullscreen() -> void:
     SaveManager.settings["fullscreen"] = not bool(SaveManager.settings.get("fullscreen", false))
@@ -408,11 +562,13 @@ func _refresh_info() -> void:
     if state != STATE_RUN or not is_instance_valid(player):
         return
     var message_suffix: String = " • " + message if message != "" else ""
-    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Run Amber %d • Enemies %d%s" % [player.hp, player.max_hp, depth, wave, run_amber, enemies.size(), message_suffix]
+    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked %d • Enemies %d%s" % [player.hp, player.max_hp, depth, wave, run_amber, enemies.size(), message_suffix]
 
 func _clear_world() -> void:
     get_tree().paused = false
     position = Vector2.ZERO
+    message = ""
+    banner_timer = 0.0
     if is_instance_valid(player):
         player.queue_free()
     player = null

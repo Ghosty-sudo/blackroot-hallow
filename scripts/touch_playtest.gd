@@ -51,20 +51,20 @@ func _detect_touch_device() -> bool:
 func _process(delta: float) -> void:
     var game: Node = get_tree().current_scene
     var gameplay_active := _is_gameplay_active(game)
-    _sync_mobile_layout(game, gameplay_active)
+    var combat_active := gameplay_active and not get_tree().paused
+    _sync_mobile_layout(game, combat_active)
 
     if hud != null:
-        hud.visible = gameplay_active
+        hud.visible = combat_active
     if not gameplay_active:
         _reset_touches()
         return
 
     var player: Node2D = _get_player(game)
-    if pause_label != null:
-        pause_label.text = "RESUME" if get_tree().paused else "PAUSE"
     _sync_control_feedback(player)
 
     if get_tree().paused:
+        _reset_touches()
         return
     if player == null:
         return
@@ -170,11 +170,11 @@ func _sync_control_feedback(player: Node2D) -> void:
         var dodge_ready := player != null and float(player.get("dodge_cooldown")) <= 0.0 and float(player.get("dodge_timer")) <= 0.0
         dodge_label.modulate = Color.WHITE if dodge_ready else Color(1.0, 1.0, 1.0, 0.38)
 
-func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
+func _sync_mobile_layout(game: Node, combat_active: bool) -> void:
     if game == null:
         return
 
-    var desired_state := 1 if gameplay_active else 0
+    var desired_state := 1 if combat_active else 0
     if desired_state == last_layout_state:
         return
     last_layout_state = desired_state
@@ -194,7 +194,7 @@ func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
     var subtitle_value: Variant = game.get("subtitle_label")
     var info_value: Variant = game.get("info_label")
 
-    if gameplay_active:
+    if combat_active:
         if gameplay_panel_style == null:
             _build_styles()
         panel.position = Vector2(8, 5)
@@ -219,7 +219,8 @@ func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
         if footer_value is Label:
             var footer := footer_value as Label
             footer.visible = true
-            footer.text = "Tap options • rotate to landscape for combat"
+            if not get_tree().paused:
+                footer.text = "Tap options • rotate to landscape for combat"
         if title_value is Label:
             (title_value as Label).add_theme_font_size_override("font_size", 15)
         if subtitle_value is Label:

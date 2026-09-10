@@ -7,6 +7,8 @@ const CURRENT_SAVE_VERSION := 2
 
 var save_data: Dictionary = _default_save()
 var settings: Dictionary = _default_settings()
+var last_load_notice: String = ""
+var last_save_error: String = ""
 
 func _ready() -> void:
     load_all()
@@ -25,6 +27,7 @@ func _default_save() -> Dictionary:
 func _default_settings() -> Dictionary:
     return {
         "master_volume": 0.8,
+        "sfx_volume": 0.8,
         "fullscreen": false,
         "screen_shake": true,
         "high_contrast": false,
@@ -32,11 +35,14 @@ func _default_settings() -> Dictionary:
     }
 
 func load_all() -> void:
+    last_load_notice = ""
+    last_save_error = ""
     save_data = _load_save_with_recovery()
     settings = _load_json(SETTINGS_PATH, _default_settings())
     apply_settings()
 
-func save_progress() -> void:
+func save_progress() -> bool:
+    last_save_error = ""
     if FileAccess.file_exists(SAVE_PATH):
         var old := FileAccess.open(SAVE_PATH, FileAccess.READ)
         if old != null:
@@ -44,37 +50,56 @@ func save_progress() -> void:
             if backup != null:
                 backup.store_string(old.get_as_text())
     save_data["version"] = CURRENT_SAVE_VERSION
-    _write_json(SAVE_PATH, save_data)
+    if not _write_json(SAVE_PATH, save_data):
+        last_save_error = "Progress could not be saved."
+        return false
+    return true
 
-func save_settings() -> void:
-    _write_json(SETTINGS_PATH, settings)
+func save_settings() -> bool:
+    last_save_error = ""
+    if not _write_json(SETTINGS_PATH, settings):
+        last_save_error = "Settings could not be saved."
+        return false
     apply_settings()
+    return true
 
 func reset_progress() -> void:
     save_data = _default_save()
     save_progress()
 
 func apply_settings() -> void:
-    var volume := clampf(float(settings.get("master_volume", 0.8)), 0.0, 1.0)
-    var bus := AudioServer.get_bus_index("Master")
+    _apply_bus_volume("Master", float(settings.get("master_volume", 0.8)))
+    _apply_bus_volume("SFX", float(settings.get("sfx_volume", 0.8)))
+    if not OS.has_feature("web"):
+        var fullscreen := bool(settings.get("fullscreen", false))
+        DisplayServer.window_set_mode(
+            DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen
+            else DisplayServer.WINDOW_MODE_WINDOWED
+        )
+
+func _apply_bus_volume(bus_name: String, value: float) -> void:
+    var volume := clampf(value, 0.0, 1.0)
+    var bus := AudioServer.get_bus_index(bus_name)
     if bus >= 0:
         AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(volume, 0.001)))
         AudioServer.set_bus_mute(bus, volume <= 0.001)
-    var fullscreen := bool(settings.get("fullscreen", false))
-    DisplayServer.window_set_mode(
-        DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen
-        else DisplayServer.WINDOW_MODE_WINDOWED
-    )
 
 func _load_save_with_recovery() -> Dictionary:
+    var primary_exists := FileAccess.file_exists(SAVE_PATH)
+    var backup_exists := FileAccess.file_exists(SAVE_BACKUP_PATH)
     var primary := _read_dictionary(SAVE_PATH)
     if not primary.is_empty():
         return _migrate_save(primary)
     var backup := _read_dictionary(SAVE_BACKUP_PATH)
     if not backup.is_empty():
         var recovered := _migrate_save(backup)
-        _write_json(SAVE_PATH, recovered)
+        if _write_json(SAVE_PATH, recovered):
+            last_load_notice = "Recovered progress from the backup save."
+        else:
+            last_load_notice = "Loaded backup progress, but the recovered save could not be rewritten."
         return recovered
+    if primary_exists or backup_exists:
+        last_load_notice = "Save data could not be read. A fresh save was started."
     return _default_save()
 
 func _migrate_save(source: Dictionary) -> Dictionary:
@@ -109,7 +134,9 @@ func _load_json(path: String, fallback: Dictionary) -> Dictionary:
             merged[key] = parsed[key]
     return merged
 
-func _write_json(path: String, data: Dictionary) -> void:
+func _write_json(path: String, data: Dictionary) -> bool:
     var file := FileAccess.open(path, FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(data, "  "))
+    if file == null:
+        return false
+    file.store_string(JSON.stringify(data, "  "))
+    return true
