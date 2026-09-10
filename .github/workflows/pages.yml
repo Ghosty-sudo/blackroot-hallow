@@ -65,6 +65,11 @@ jobs:
             echo "Godot Web export emitted a parser/resource failure"
             exit 1
           fi
+
+      - name: Apply mobile landscape shell
+        run: |
+          python3 web/patch_mobile_shell.py
+          grep -Fq "blackroot-mobile-landscape" build/web/index.html
           touch build/web/.nojekyll
 
       - name: Configure Pages
