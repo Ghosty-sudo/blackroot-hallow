@@ -13,6 +13,7 @@ var attack_cooldown := 0.0
 var hurt_cooldown := 0.0
 var dodge_timer := 0.0
 var dodge_cooldown := 0.0
+var dodge_cooldown_max := 0.72
 var dodge_input_locked := false
 var facing := Vector2.DOWN
 var dodge_direction := Vector2.DOWN
@@ -23,6 +24,7 @@ var incoming_multiplier := 1.0
 var lifesteal := 0.0
 var weapon: Dictionary = {}
 var knockback_velocity := Vector2.ZERO
+var relic_names: Array[String] = []
 
 func configure(meta: Dictionary, mark: Dictionary, chosen_weapon: Dictionary) -> void:
     max_hp = maxi(1, 8 + int(meta.get("max_hp_bonus", 0)) + int(mark.get("hp_bonus", 0)))
@@ -32,8 +34,34 @@ func configure(meta: Dictionary, mark: Dictionary, chosen_weapon: Dictionary) ->
     incoming_multiplier = float(mark.get("incoming_mult", 1.0))
     lifesteal = float(mark.get("lifesteal", 0.0))
     weapon = chosen_weapon.duplicate(true)
+    dodge_cooldown_max = 0.72
+    relic_names.clear()
     hp = max_hp
     dodge_input_locked = false
+    hp_changed.emit(hp, max_hp)
+    queue_redraw()
+
+func apply_relic(relic: Dictionary) -> void:
+    var relic_id := String(relic.get("id", ""))
+    if relic_id in relic_names:
+        return
+    relic_names.append(relic_id)
+    match relic_id:
+        "thorn_heart":
+            max_hp += 2
+            hp = mini(max_hp, hp + 2)
+        "keen_resin":
+            damage_multiplier *= 1.20
+        "hollow_step":
+            move_multiplier *= 1.12
+            dodge_cooldown_max *= 0.80
+        "sapglass_fang":
+            lifesteal += 0.12
+        "warden_knot":
+            incoming_multiplier *= 0.85
+        "longroot_grip":
+            weapon["reach"] = float(weapon.get("reach", 13.0)) * 1.18
+            weapon["radius"] = float(weapon.get("radius", 15.0)) + 2.0
     hp_changed.emit(hp, max_hp)
     queue_redraw()
 
@@ -94,7 +122,7 @@ func _begin_dodge(requested_direction: Vector2, lock_desktop_input: bool) -> boo
     dodge_direction = direction
     facing = direction
     dodge_timer = 0.18
-    dodge_cooldown = 0.72
+    dodge_cooldown = dodge_cooldown_max
     hurt_cooldown = maxf(hurt_cooldown, 0.26)
     if lock_desktop_input:
         dodge_input_locked = true

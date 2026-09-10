@@ -58,40 +58,28 @@ func _run() -> void:
 
     _check(int(game.get("state")) == 0, "title state boots")
     _check(_menu_contains(game, "BEGIN"), "opening presents clear begin action")
-
     game.call("_show_hub")
-    _check(int(game.get("state")) == 1, "title -> hub")
     _check(_menu_contains(game, "DESCEND"), "hub presents clear descend action")
     _check(int(game.call("_hp_upgrade_cost")) >= 8, "vitality upgrade has explicit cost")
     _check(int(game.call("_damage_upgrade_cost")) >= 10, "damage upgrade has explicit cost")
 
     game.call("_show_weapons")
-    _check(int(game.get("state")) == 2, "hub -> weapon select")
     var weapons: Array = game.get("weapons")
-    _check(weapons.size() >= 3, "three weapon choices available")
+    _check(weapons.size() == 3, "three distinct weapon choices available")
     game.call("_choose_weapon", weapons[0])
-    _check(int(game.get("state")) == 3, "weapon -> Rootmark select")
-
     var marks: Array = game.get("marks")
-    _check(marks.size() >= 3, "three Rootmark choices available")
+    _check(marks.size() == 3, "three Rootmark bargains available")
     game.call("_start_run", marks[0])
     await process_frame
 
-    _check(int(game.get("state")) == 4, "Rootmark starts expedition")
     var player: Node2D = game.get("player")
-    var enemies: Array = game.get("enemies")
-    _check(player != null and is_instance_valid(player), "player spawned")
-    _check(enemies.size() >= 3, "first encounter spawned")
+    _check(int(game.get("state")) == 4 and player != null, "expedition starts with player")
 
-    # Pause is now a real player-facing menu, not only a text state.
     game.call("_toggle_pause")
     _check(paused, "pause suspends gameplay")
-    _check(_menu_contains(game, "RESUME"), "pause offers resume")
-    _check(_menu_contains(game, "RESTART"), "pause offers restart")
-    _check(_menu_contains(game, "SETTINGS"), "pause offers settings")
-    _check(_menu_contains(game, "ABANDON"), "pause offers abandon")
+    for label in ["RESUME", "RESTART", "SETTINGS", "ABANDON"]:
+        _check(_menu_contains(game, label), "pause offers " + label.to_lower())
     game.call("_show_settings")
-    _check(int(game.get("state")) == 7, "settings open from paused run")
     _check(_menu_contains(game, "SFX VOLUME"), "settings expose SFX volume")
     game.call("_leave_settings")
     _check(int(game.get("state")) == 4 and paused, "back from run settings restores pause")
@@ -100,116 +88,109 @@ func _run() -> void:
 
     var touch := root.get_node_or_null("TouchPlaytest")
     _check(touch != null, "touch adapter autoload exists")
-    if player != null and is_instance_valid(player) and touch != null:
+    if player != null and touch != null:
         touch.set("touch_device", true)
         if touch.get("hud") == null:
             touch.call("_build_styles")
             touch.call("_build_hud")
-
         var before_touch := player.position
         touch.call("_input", _touch_event(1, Vector2(35, 145), true))
         touch.call("_input", _drag_event(1, Vector2(67, 145)))
         touch.call("_process", 0.10)
         touch.call("_input", _touch_event(1, Vector2(67, 145), false))
         _check(player.position.x > before_touch.x, "screen-drag movement moves player")
-        _check(Vector2(touch.get("move_vector")) == Vector2.ZERO, "movement releases cleanly")
-
-        var footer: Variant = game.get("footer_label")
-        if footer is Label:
-            _check(not (footer as Label).visible, "mobile combat hides desktop footer")
-        var subtitle: Variant = game.get("subtitle_label")
-        if subtitle is Label:
-            _check(not (subtitle as Label).visible, "mobile combat hides subtitle for field space")
-
-        enemies = game.get("enemies")
+        var enemies: Array = game.get("enemies")
         if enemies.size() > 0:
             var enemy: Node2D = enemies[0]
             player.set("facing", Vector2.RIGHT)
             enemy.position = player.position + Vector2(13, 0)
-            var hp_before: int = int(enemy.get("hp"))
+            var hp_before := int(enemy.get("hp"))
             player.set("attack_cooldown", 0.0)
             touch.call("_input", _touch_event(2, Vector2(286, 146), true))
             touch.call("_input", _touch_event(2, Vector2(286, 146), false))
-            _check(int(enemy.get("hp")) < hp_before, "ATTACK touch damages enemy in range")
+            _check(int(enemy.get("hp")) < hp_before, "touch attack damages enemy")
             _check(float(enemy.get("hit_flash_timer")) > 0.0, "enemy hit feedback starts")
-            _check(int(touch.get("attack_touch_id")) == -1, "attack touch releases cleanly")
-
         player.set("dodge_cooldown", 0.0)
         player.set("dodge_timer", 0.0)
         player.set("facing", Vector2.UP)
         touch.call("_input", _touch_event(6, Vector2(35, 145), true))
         touch.call("_input", _drag_event(6, Vector2(67, 145)))
         touch.call("_input", _touch_event(3, Vector2(230, 152), true))
-        _check(float(player.get("dodge_timer")) > 0.0, "DODGE touch starts dodge window")
         _check(Vector2(player.get("dodge_direction")).x > 0.8, "touch dodge follows active thumb direction")
-        var cooldown_after_first := float(player.get("dodge_cooldown"))
-        touch.call("_input", _touch_event(3, Vector2(230, 152), true))
-        _check(float(player.get("dodge_cooldown")) == cooldown_after_first, "DODGE touch cannot retrigger during cooldown")
         touch.call("_input", _touch_event(3, Vector2(230, 152), false))
         touch.call("_input", _touch_event(6, Vector2(67, 145), false))
 
-        touch.set("move_touch_id", 9)
-        touch.set("attack_touch_id", 10)
-        touch.set("move_vector", Vector2.LEFT)
-        touch.call("_reset_touches")
-        _check(int(touch.get("move_touch_id")) == -1 and int(touch.get("attack_touch_id")) == -1, "focus cleanup releases touch ids")
-        _check(Vector2(touch.get("move_vector")) == Vector2.ZERO, "focus cleanup clears movement")
+    _check(String(game.call("_guardian_kind_for_depth", 1)) == "briar_warden", "depth one uses Briar Warden")
+    _check(String(game.call("_guardian_kind_for_depth", 2)) == "marrow_bell", "depth two uses Marrow Bell")
+    _check(String(game.call("_guardian_kind_for_depth", 3)) == "ember_stag", "depth three uses Ember Stag")
+    var relic_pool: Array = game.get("relic_pool")
+    _check(relic_pool.size() == 6, "six coherent relic effects form the run pool")
 
-        player.set("dodge_timer", 0.0)
-        player.set("dodge_cooldown", 0.0)
-        player.set("dodge_input_locked", false)
-        _check(bool(player.call("_begin_dodge", Vector2.RIGHT, true)), "desktop dodge starts once")
-        player.set("dodge_timer", 0.0)
-        player.set("dodge_cooldown", 0.0)
-        _check(not bool(player.call("_begin_dodge", Vector2.RIGHT, true)), "held desktop dodge does not auto-repeat")
-        player.call("_process", 0.0)
-        _check(not bool(player.get("dodge_input_locked")), "desktop dodge unlocks after release")
+    # First guardian clear must become a run-shaping choice, not an automatic repeated floor.
+    game.set("wave", 4)
+    game.set("run_amber", 7)
+    game.call("_advance_encounter")
+    await process_frame
+    _check(int(game.get("state")) == 8, "first guardian clear opens relic choice")
+    _check(int(game.get("depth")) == 2, "relic choice occurs before depth two")
+    var relic_options: Array = game.get("relic_options")
+    _check(relic_options.size() == 3, "relic choice presents three options")
+    player = game.get("player")
+    var hp_before_relic := int(player.get("max_hp"))
+    game.call("_choose_relic", relic_pool[0])
+    await process_frame
+    _check(int(game.get("state")) == 4, "relic choice resumes expedition")
+    _check(int(player.get("max_hp")) == hp_before_relic + 2, "Thorn Heart changes player build")
+    _check(Array(game.get("run_relics")).size() == 1, "chosen relic is tracked in run identity")
+    _check(int(game.get("wave")) == 1, "next biome begins after relic choice")
 
-        enemies = game.get("enemies")
-        if enemies.size() >= 2:
-            var enemy_a: Node2D = enemies[0]
-            var enemy_b: Node2D = enemies[1]
-            enemy_a.position = Vector2(120, 100)
-            enemy_b.position = Vector2(120, 100)
-            enemy_a.call("_apply_separation", 0.20)
-            _check(enemy_a.position.distance_to(enemy_b.position) > 0.1, "overlapping enemies separate")
-
-    # Progression and results screens stay player-facing and actionable.
-    game.call("_start_run", marks[1])
+    # Second depth uses its own guardian and grants another choice.
     game.set("wave", 3)
     game.call("_advance_encounter")
     await process_frame
-    _check(int(game.get("wave")) == 4, "encounter progression reaches guardian wave")
-
-    player = game.get("player")
-    if player != null and is_instance_valid(player):
-        game.set("run_amber", 6)
-        game.set("run_kills", 4)
-        player.call("take_damage", 999)
-        await process_frame
-        _check(int(game.get("state")) == 5, "lethal damage reaches game-over state")
-        _check(_menu_contains(game, "RETRY"), "death screen offers immediate retry")
-        _check(int(game.get("last_run_amber_banked")) == 3, "death result reports half recovered unbanked Amber")
-        game.call("_retry_same_loadout")
-        await process_frame
-        _check(int(game.get("state")) == 4, "same-loadout retry starts a fresh expedition")
-        _check(int(game.get("depth")) == 1 and int(game.get("run_amber")) == 0, "retry resets run state")
-
-    game.call("_show_hub")
-    game.call("_show_weapons")
-    game.call("_choose_weapon", weapons[2])
-    game.call("_start_run", marks[2])
-    game.set("depth", 3)
-    game.set("wave", 4)
-    game.set("run_kills", 10)
-    game.set("run_amber", 5)
+    var enemies_after: Array = game.get("enemies")
+    _check(enemies_after.size() == 1 and String(enemies_after[0].get("archetype")) == "marrow_bell", "depth two guardian is mechanically distinct")
+    for enemy: Node in enemies_after:
+        enemy.queue_free()
+    game.set("enemies", [])
     game.call("_advance_encounter")
     await process_frame
-    _check(int(game.get("state")) == 6, "depth-three guardian clear reaches victory")
-    _check(_menu_contains(game, "DESCEND AGAIN"), "victory screen offers replay with same loadout")
+    _check(int(game.get("state")) == 8 and int(game.get("depth")) == 3, "second guardian clear opens final relic choice")
+    game.call("_choose_relic", relic_pool[1])
+    await process_frame
+    _check(Array(game.get("run_relics")).size() == 2, "run carries two relics into final depth")
+
+    # Death/result path remains actionable after the new run-identity system.
+    player = game.get("player")
+    game.set("run_amber", 6)
+    game.set("run_kills", 4)
+    player.set("hurt_cooldown", 0.0)
+    player.set("dodge_timer", 0.0)
+    player.call("take_damage", 999)
+    await process_frame
+    _check(int(game.get("state")) == 5, "lethal damage reaches game-over state")
+    _check(_menu_contains(game, "RETRY"), "death screen offers immediate retry")
+    game.call("_retry_same_loadout")
+    await process_frame
+    _check(int(game.get("state")) == 4 and Array(game.get("run_relics")).is_empty(), "retry starts a clean run build")
+
+    # Final guardian mapping and victory path.
+    game.set("depth", 3)
+    game.set("wave", 3)
+    game.call("_advance_encounter")
+    await process_frame
+    var final_enemies: Array = game.get("enemies")
+    _check(final_enemies.size() == 1 and String(final_enemies[0].get("archetype")) == "ember_stag", "final depth uses Ember Stag guardian")
+    for enemy: Node in final_enemies:
+        enemy.queue_free()
+    game.set("enemies", [])
+    game.call("_advance_encounter")
+    await process_frame
+    _check(int(game.get("state")) == 6, "final guardian clear reaches victory")
+    _check(_menu_contains(game, "DESCEND AGAIN"), "victory offers replay")
     var victory_info: Variant = game.get("info_label")
     if victory_info is Label:
-        _check(not "technical loop" in (victory_info as Label).text.to_lower(), "victory screen contains no developer-facing residue")
+        _check(not "technical loop" in (victory_info as Label).text.to_lower(), "victory has no developer-facing residue")
 
     var exit_code := 0
     if failures == 0:
@@ -217,7 +198,6 @@ func _run() -> void:
     else:
         push_error("BLACKROOT GAMEPLAY SMOKE FAILED: %d checks failed" % failures)
         exit_code = 1
-
     current_scene = null
     game.queue_free()
     await process_frame

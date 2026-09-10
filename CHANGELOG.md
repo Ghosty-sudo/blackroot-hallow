@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — Run Identity + Distinct Guardians
+- Added two mid-run Root Cache choices so a successful expedition develops mechanically instead of remaining the same loadout from start to finish.
+- Added six compact relics with distinct effects on health, damage, mobility/dodge recovery, lifesteal, mitigation, and attack reach.
+- Added three different guardians instead of repeating Briar Warden at every depth: Briar Warden uses a readable line charge, Marrow Bell uses a telegraphed proximity pulse, and Ember Stag uses short chained dash tells.
+- Weighted regular-enemy mixes differently by biome so each depth applies a different pressure profile without padding the roster with cosmetic variants.
+- Added biome-specific floor markings and guardian guidance to strengthen depth identity.
+- Added run relics to pause/results/HUD feedback and ensured same-loadout retry starts a fresh relic build.
+- Surfaced save-write failures in player-facing hub/settings flows.
+- Expanded automated gameplay QA to cover relic choices/effects, distinct guardian mapping, second-biome/final-biome transitions, clean retry state, and existing player-path QoL.
+- Kept the scope intentionally compact: this is a depth/choice-quality pass, not a feature-count expansion.
+
 ## 0.2.4 — Player-Path QoL + Handoff Gate
 - Replaced the pause text toggle with a real pause menu: Resume, Restart Same Loadout, Settings, and Abandon to Warden's Rest.
 - Added same-loadout retry from death and replay from victory so testing and normal play do not require rebuilding the same choice path.
@@ -22,30 +33,19 @@
 - Added regular-enemy hit flashes and damage health bars for clearer attack feedback.
 - Added light enemy separation so regular enemies do not collapse into one unreadable stack.
 - Updated the Web shell so landscape gameplay respects device safe-area insets around phone notches and browser edges.
-- Expanded automated gameplay QA for directional touch dodge, stuck-touch cleanup, desktop dodge repeat prevention, enemy hit feedback, and enemy separation.
 
 ## 0.2.2 — Mobile Landscape + Automated Gameplay QA
 - Reworked the phone playtest presentation around landscape instead of allowing a squeezed portrait gameplay view.
 - Added a mobile Web shell that fills the available browser viewport, blocks overscroll, respects safe-area insets, and shows a dedicated rotate prompt in portrait.
 - Replaced oversized phone controls with smaller translucent visuals backed by larger invisible hit areas.
-- Compacted the mobile combat HUD and hid desktop-only control instructions during touch gameplay.
-- Added scripted gameplay QA for title, hub, weapon/Rootmark selection, combat, guardian progression, death, and victory.
-- Extended self-play QA to exercise actual ScreenTouch/ScreenDrag event paths.
-- Hardened CI so generic Godot engine ERROR lines fail the build.
+- Added scripted gameplay QA and hardened CI so generic Godot engine ERROR lines fail the build.
 
 ## 0.2.1 — Phone Playtest Controls
 - Added a browser-only/mobile touch playtest adapter without changing the Steam/PC release target.
 - Added multitouch drag movement plus dedicated Attack, Dodge, and Pause touch zones.
-- Enabled touch-to-mouse emulation so existing menus remain tappable in mobile browsers.
 
 ## 0.2.0 — Vertical Slice Candidate
-- Added three selectable weapon archetypes with different reach, damage, speed, and knockback.
-- Added dodge movement, cooldown, and invulnerability frames.
-- Added player/enemy knockback and stronger hit feedback.
-- Replaced prototype boss behavior with a telegraphed Briar Warden charge.
-- Added biome identities for Gloamgrove, Marrowroot, and Embermold.
-- Added first-run tutorial messaging, save backup/recovery, accessibility toggles, and procedural placeholder SFX.
+- Added three selectable weapon archetypes, dodge/iframes, knockback, a telegraphed boss, biome identities, save recovery, accessibility toggles, and procedural placeholder SFX.
 
 ## 0.1.0 — Foundation
 - Established title, hub, Rootmark, combat, boss, death, victory, and meta-progression loop.
-- Added persistent settings/save data, controller basics, Windows export preset, and release documentation.

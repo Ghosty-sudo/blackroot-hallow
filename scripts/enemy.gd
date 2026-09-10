@@ -19,6 +19,9 @@ var dash_direction := Vector2.ZERO
 var knockback_velocity := Vector2.ZERO
 var archetype := "thornling"
 var hit_flash_timer := 0.0
+var dash_speed := 175.0
+var dash_duration := 0.28
+var chained_dashes := 0
 
 func configure(kind: String, depth: int, player: Node2D) -> void:
     archetype = kind
@@ -43,13 +46,35 @@ func configure(kind: String, depth: int, player: Node2D) -> void:
         reward = 2
         radius = 5.0
     elif kind == "briar_warden":
-        hp = 34 + depth * 7
+        hp = 38
         speed = 24.0
         touch_damage = 2
         reward = 12
         radius = 12.0
         is_boss = true
-        special_timer = 1.8
+        special_timer = 1.5
+        dash_speed = 175.0
+        dash_duration = 0.28
+        AudioManager.play_sfx("boss")
+    elif kind == "marrow_bell":
+        hp = 52
+        speed = 18.0
+        touch_damage = 2
+        reward = 16
+        radius = 13.0
+        is_boss = true
+        special_timer = 1.7
+        AudioManager.play_sfx("boss")
+    elif kind == "ember_stag":
+        hp = 62
+        speed = 29.0
+        touch_damage = 2
+        reward = 20
+        radius = 11.0
+        is_boss = true
+        special_timer = 1.4
+        dash_speed = 240.0
+        dash_duration = 0.17
         AudioManager.play_sfx("boss")
     max_hp = hp
     queue_redraw()
@@ -98,9 +123,18 @@ func _apply_separation(delta: float) -> void:
         position += offset.normalized() * minf(24.0 * delta, maxf(0.0, desired - distance) * 0.5)
 
 func _process_boss(delta: float) -> void:
+    match archetype:
+        "marrow_bell":
+            _process_marrow_bell(delta)
+        "ember_stag":
+            _process_ember_stag(delta)
+        _:
+            _process_briar_warden(delta)
+
+func _process_briar_warden(delta: float) -> void:
     if dash_timer > 0.0:
         dash_timer = maxf(0.0, dash_timer - delta)
-        position += dash_direction * 175.0 * delta
+        position += dash_direction * dash_speed * delta
         if position.distance_to(target.position) <= radius + 7.0 and attack_timer <= 0.0:
             target.take_damage(touch_damage + 1, position)
             attack_timer = 0.75
@@ -108,7 +142,7 @@ func _process_boss(delta: float) -> void:
     if telegraph_timer > 0.0:
         telegraph_timer = maxf(0.0, telegraph_timer - delta)
         if telegraph_timer <= 0.0:
-            dash_timer = 0.28
+            dash_timer = dash_duration
         return
     special_timer = maxf(0.0, special_timer - delta)
     if special_timer <= 0.0:
@@ -116,12 +150,63 @@ func _process_boss(delta: float) -> void:
         telegraph_timer = 0.55
         special_timer = 2.2
         return
+    _boss_chase(delta, radius + 9.0)
+
+func _process_marrow_bell(delta: float) -> void:
+    if telegraph_timer > 0.0:
+        telegraph_timer = maxf(0.0, telegraph_timer - delta)
+        if telegraph_timer <= 0.0:
+            if position.distance_to(target.position) <= 52.0 and attack_timer <= 0.0:
+                target.take_damage(touch_damage + 1, position)
+                attack_timer = 0.9
+            special_timer = 2.4
+        return
+    special_timer = maxf(0.0, special_timer - delta)
+    if special_timer <= 0.0:
+        telegraph_timer = 0.80
+        return
     var to_player := target.position - position
-    if to_player.length() > radius + 9.0:
+    if to_player.length() > 34.0:
+        position += to_player.normalized() * speed * delta
+    elif to_player.length() < 24.0:
+        position -= to_player.normalized() * speed * 0.45 * delta
+    elif attack_timer <= 0.0:
+        target.take_damage(touch_damage, position)
+        attack_timer = 1.0
+
+func _process_ember_stag(delta: float) -> void:
+    if dash_timer > 0.0:
+        dash_timer = maxf(0.0, dash_timer - delta)
+        position += dash_direction * dash_speed * delta
+        if position.distance_to(target.position) <= radius + 6.0 and attack_timer <= 0.0:
+            target.take_damage(touch_damage + 1, position)
+            attack_timer = 0.55
+        if dash_timer <= 0.0 and chained_dashes > 0:
+            chained_dashes -= 1
+            dash_direction = (target.position - position).normalized()
+            telegraph_timer = 0.20
+        return
+    if telegraph_timer > 0.0:
+        telegraph_timer = maxf(0.0, telegraph_timer - delta)
+        if telegraph_timer <= 0.0:
+            dash_timer = dash_duration
+        return
+    special_timer = maxf(0.0, special_timer - delta)
+    if special_timer <= 0.0:
+        dash_direction = (target.position - position).normalized()
+        chained_dashes = 1
+        telegraph_timer = 0.34
+        special_timer = 2.3
+        return
+    _boss_chase(delta, radius + 11.0)
+
+func _boss_chase(delta: float, stop_distance: float) -> void:
+    var to_player := target.position - position
+    if to_player.length() > stop_distance:
         position += to_player.normalized() * speed * delta
     elif attack_timer <= 0.0:
         target.take_damage(touch_damage, position)
-        attack_timer = 0.7
+        attack_timer = 0.75
 
 func take_damage(amount: int, force: Vector2 = Vector2.ZERO) -> int:
     var dealt := mini(amount, hp)
@@ -145,6 +230,8 @@ func _draw() -> void:
     if archetype == "brute": color = Color("76554a")
     elif archetype == "stalker": color = Color("825a83")
     elif archetype == "briar_warden": color = Color("9e4638")
+    elif archetype == "marrow_bell": color = Color("978775")
+    elif archetype == "ember_stag": color = Color("c05a36")
     if hit_flash_timer > 0.0:
         color = color.lightened(0.45)
     draw_rect(Rect2(-radius, -radius, radius * 2.0, radius * 2.0), color)
@@ -157,10 +244,20 @@ func _draw() -> void:
     elif archetype == "stalker":
         draw_line(Vector2(-5, 5), Vector2(-10, 10), Color("bb83b0"), 2.0)
         draw_line(Vector2(5, 5), Vector2(10, 10), Color("bb83b0"), 2.0)
+
     if is_boss:
-        if telegraph_timer > 0.0:
+        if archetype == "briar_warden" and telegraph_timer > 0.0:
             draw_circle(Vector2.ZERO, radius + 6.0, Color(1.0, 0.25, 0.16, 0.20))
             draw_line(Vector2.ZERO, dash_direction * 34.0, Color(1.0, 0.70, 0.20, 0.85), 2.0)
+        elif archetype == "marrow_bell":
+            draw_circle(Vector2.ZERO, 5.0, Color("ded6c8"))
+            if telegraph_timer > 0.0:
+                draw_arc(Vector2.ZERO, 52.0, 0.0, TAU, 48, Color(0.90, 0.85, 0.72, 0.85), 2.0)
+        elif archetype == "ember_stag":
+            draw_line(Vector2(-7, -8), Vector2(-13, -16), Color("e6b75b"), 2.0)
+            draw_line(Vector2(7, -8), Vector2(13, -16), Color("e6b75b"), 2.0)
+            if telegraph_timer > 0.0:
+                draw_line(Vector2.ZERO, dash_direction * 40.0, Color(1.0, 0.52, 0.20, 0.92), 2.0)
         draw_rect(Rect2(-18, -20, 36, 3), Color("251f22"))
         draw_rect(Rect2(-18, -20, 36.0 * clampf(float(hp) / float(max_hp), 0.0, 1.0), 3), Color("e0b84a"))
     elif hp < max_hp:

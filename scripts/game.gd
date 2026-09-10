@@ -8,6 +8,7 @@ const STATE_RUN := 4
 const STATE_GAMEOVER := 5
 const STATE_VICTORY := 6
 const STATE_SETTINGS := 7
+const STATE_RELICS := 8
 
 const HP_UPGRADE_CAP := 5
 const DAMAGE_UPGRADE_CAP := 4
@@ -20,6 +21,8 @@ var wave: int = 0
 var run_amber: int = 0
 var run_banked_amber: int = 0
 var run_kills: int = 0
+var run_relics: Array[String] = []
+var relic_options: Array[Dictionary] = []
 var selected_mark: Dictionary = {}
 var selected_weapon: Dictionary = {}
 var attack_flash: float = 0.0
@@ -32,6 +35,7 @@ var settings_return_paused: bool = false
 var last_run_depth: int = 0
 var last_run_kills: int = 0
 var last_run_amber_banked: int = 0
+var last_run_relics: Array[String] = []
 var shake_time: float = 0.0
 var shake_strength: float = 0.0
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -53,6 +57,15 @@ var weapons: Array[Dictionary] = [
     {"id": "blade", "name": "Warden Blade", "desc": "Balanced reach, speed, and control.", "damage_mult": 1.0, "cooldown": 0.30, "reach": 13.0, "radius": 15.0, "knockback": 95.0},
     {"id": "pike", "name": "Root Pike", "desc": "Long reach and control, but lighter hits.", "damage_mult": 0.82, "cooldown": 0.34, "reach": 21.0, "radius": 13.0, "knockback": 125.0},
     {"id": "cleaver", "name": "Grave Cleaver", "desc": "Heavy damage and knockback, but slow recovery.", "damage_mult": 1.42, "cooldown": 0.52, "reach": 12.0, "radius": 17.0, "knockback": 165.0}
+]
+
+var relic_pool: Array[Dictionary] = [
+    {"id": "thorn_heart", "name": "Thorn Heart", "desc": "+2 maximum HP and heal 2."},
+    {"id": "keen_resin", "name": "Keen Resin", "desc": "+20% damage."},
+    {"id": "hollow_step", "name": "Hollow Step", "desc": "+12% move speed and 20% faster dodge recovery."},
+    {"id": "sapglass_fang", "name": "Sapglass Fang", "desc": "+12% lifesteal."},
+    {"id": "warden_knot", "name": "Warden Knot", "desc": "Take 15% less damage."},
+    {"id": "longroot_grip", "name": "Longroot Grip", "desc": "+18% attack reach and a wider strike."}
 ]
 
 var biome_data: Array[Dictionary] = [
@@ -138,7 +151,8 @@ func _show_pause_menu() -> void:
     _clear_menu()
     title_label.text = "PAUSED"
     subtitle_label.text = "%s • %s" % [String(selected_weapon.get("name", "Weapon")), String(selected_mark.get("name", "Rootmark"))]
-    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked Amber %d" % [player.hp, player.max_hp, depth, wave, run_amber]
+    var relic_text := "None" if run_relics.is_empty() else ", ".join(run_relics)
+    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked Amber %d\nRelics: %s" % [player.hp, player.max_hp, depth, wave, run_amber, relic_text]
     _button("RESUME EXPEDITION", _resume_run)
     _button("RESTART — SAME LOADOUT", _restart_current_run)
     _button("SETTINGS", _show_settings)
@@ -221,8 +235,7 @@ func _button(text: String, callback: Callable) -> void:
         callback.call()
     )
     menu_box.add_child(button)
-    if menu_box.get_child_count() == 1:
-        button.call_deferred("grab_focus")
+    button.call_deferred("grab_focus") if menu_box.get_child_count() == 1 else null
 
 func _show_title() -> void:
     state = STATE_TITLE
@@ -231,7 +244,7 @@ func _show_title() -> void:
     _clear_menu()
     title_label.text = "BLACKROOT HOLLOW"
     subtitle_label.text = "Power always takes something back."
-    info_label.text = "Descend beneath Warden's Rest. Bind a cursed Rootmark, survive the guardians, bank Root Amber, and return stronger."
+    info_label.text = "Descend beneath Warden's Rest. Bind a cursed Rootmark, survive three distinct guardians, shape the run with relics, bank Root Amber, and return stronger."
     _button("BEGIN", _show_hub)
     _button("SETTINGS", _show_settings)
     if not OS.has_feature("web"):
@@ -252,7 +265,9 @@ func _show_hub() -> void:
     var hp_state := "MAX" if hp_rank >= HP_UPGRADE_CAP else "%d/%d" % [hp_rank, HP_UPGRADE_CAP]
     var damage_state := "MAX" if damage_rank >= DAMAGE_UPGRADE_CAP else "%d/%d" % [damage_rank, DAMAGE_UPGRADE_CAP]
     info_label.text = "Amber %d • Vitality %s (+%d HP) • Edge %s (+%d damage) • Best Depth %d • Clears %d" % [int(data.get("root_amber", 0)), hp_state, hp_rank, damage_state, damage_rank, int(data.get("best_depth", 0)), int(data.get("wins", 0))]
-    if hub_notice != "":
+    if SaveManager.last_save_error != "":
+        info_label.text += "\n" + SaveManager.last_save_error
+    elif hub_notice != "":
         info_label.text += "\n" + hub_notice
         hub_notice = ""
     _button("DESCEND INTO THE HOLLOW", _show_weapons)
@@ -262,7 +277,7 @@ func _show_hub() -> void:
         _button("HONE WEAPON (+1 DAMAGE) — %d AMBER" % _damage_upgrade_cost(), _buy_damage)
     _button("SETTINGS", _show_settings)
     _button("TITLE", _show_title)
-    footer_label.text = "Permanent upgrades are capped; Rootmark tradeoffs remain the core power choice."
+    footer_label.text = "Permanent upgrades are capped; Rootmark + relic synergy shapes each run."
 
 func _hp_upgrade_cost() -> int:
     return 8 + int(SaveManager.save_data.get("max_hp_bonus", 0)) * 4
@@ -307,6 +322,8 @@ func _start_run(mark: Dictionary) -> void:
     run_amber = 0
     run_banked_amber = 0
     run_kills = 0
+    run_relics.clear()
+    relic_options.clear()
     message = ""
     banner_timer = 0.0
     _clear_menu()
@@ -328,24 +345,45 @@ func _start_run(mark: Dictionary) -> void:
     _spawn_wave()
     _refresh_info()
 
+func _regular_kinds_for_depth() -> Array[String]:
+    if depth == 1:
+        return ["thornling", "thornling", "thornling", "brute"]
+    if depth == 2:
+        return ["thornling", "brute", "brute", "stalker"]
+    return ["stalker", "stalker", "brute", "thornling"]
+
+func _guardian_kind_for_depth(value: int) -> String:
+    if value == 1:
+        return "briar_warden"
+    if value == 2:
+        return "marrow_bell"
+    return "ember_stag"
+
+func _guardian_message_for_depth(value: int) -> String:
+    if value == 1:
+        return "BRIAR WARDEN — line tell means move aside"
+    if value == 2:
+        return "MARROW BELL — leave the pulse ring before it breaks"
+    return "EMBER STAG — short tells chain into two dashes"
+
 func _spawn_wave() -> void:
     wave += 1
     var is_boss_wave: bool = wave % 4 == 0
     if banner_timer <= 0.0:
-        message = "BRIAR WARDEN — watch the charge tell" if is_boss_wave else "Encounter %d/4" % wave
-        banner_timer = 1.8
+        message = _guardian_message_for_depth(depth) if is_boss_wave else "Encounter %d/4" % wave
+        banner_timer = 1.8 if not is_boss_wave else 2.8
     elif is_boss_wave:
-        message = "BRIAR WARDEN — watch the charge tell"
-        banner_timer = 2.4
+        message = _guardian_message_for_depth(depth)
+        banner_timer = 2.8
     if is_boss_wave:
-        _spawn_enemy("briar_warden", Vector2(160, 55))
+        _spawn_enemy(_guardian_kind_for_depth(depth), Vector2(160, 55))
     else:
         var count: int = mini(2 + depth + int(wave / 2), 8)
-        var kinds: Array[String] = ["thornling", "thornling", "brute", "stalker"]
+        var kinds := _regular_kinds_for_depth()
         for i: int in range(count):
             var angle: float = TAU * float(i) / float(maxi(1, count))
             var spawn_pos: Vector2 = Vector2(160, 98) + Vector2(cos(angle), sin(angle)) * (55.0 + float((i * 13) % 25))
-            _spawn_enemy(kinds[(i + depth + wave) % kinds.size()], spawn_pos)
+            _spawn_enemy(kinds[(i + wave) % kinds.size()], spawn_pos)
     _refresh_info()
 
 func _spawn_enemy(kind: String, spawn_pos: Vector2) -> void:
@@ -404,6 +442,7 @@ func _advance_encounter() -> void:
             last_run_depth = depth
             last_run_kills = run_kills
             last_run_amber_banked = run_banked_amber
+            last_run_relics = run_relics.duplicate()
             _show_victory()
             return
         depth += 1
@@ -413,9 +452,43 @@ func _advance_encounter() -> void:
         if is_instance_valid(player):
             player.hp = player.max_hp
             player.hp_changed.emit(player.hp, player.max_hp)
-        title_label.text = String(biome_data[depth - 1].get("name", "THE HOLLOW"))
-        message = "ROOT VEIN CLEARED — Amber banked, health restored."
-        banner_timer = 2.6
+        _show_relic_choice()
+        return
+    _spawn_wave()
+
+func _show_relic_choice() -> void:
+    state = STATE_RELICS
+    _clear_menu()
+    relic_options.clear()
+    var available: Array[Dictionary] = []
+    for relic: Dictionary in relic_pool:
+        if not String(relic.get("name", "")) in run_relics:
+            available.append(relic.duplicate(true))
+    while relic_options.size() < mini(3, available.size()):
+        var index := rng.randi_range(0, available.size() - 1)
+        relic_options.append(available[index])
+        available.remove_at(index)
+    title_label.text = "ROOT CACHE"
+    subtitle_label.text = "A guardian fell. Bind one relic before descending."
+    info_label.text = "Choose one effect for the rest of this expedition. You will get one more choice after the next guardian."
+    for relic: Dictionary in relic_options:
+        _button("%s — %s" % [String(relic.get("name", "Relic")), String(relic.get("desc", ""))], _choose_relic.bind(relic.duplicate(true)))
+    footer_label.text = "Relics stack with your weapon and Rootmark; there is no neutral choice."
+
+func _choose_relic(relic: Dictionary) -> void:
+    if state != STATE_RELICS or not is_instance_valid(player):
+        return
+    var relic_name := String(relic.get("name", "Relic"))
+    if relic_name in run_relics:
+        return
+    run_relics.append(relic_name)
+    player.apply_relic(relic)
+    state = STATE_RUN
+    _clear_menu()
+    title_label.text = String(biome_data[clampi(depth - 1, 0, biome_data.size() - 1)].get("name", "THE HOLLOW"))
+    subtitle_label.text = "%s • %s • %d relic%s" % [String(selected_weapon.get("name", "Weapon")), String(selected_mark.get("name", "Rootmark")), run_relics.size(), "" if run_relics.size() == 1 else "s"]
+    message = "%s BOUND — health restored, descending." % relic_name.to_upper()
+    banner_timer = 2.6
     _spawn_wave()
 
 func _on_player_died() -> void:
@@ -426,12 +499,13 @@ func _on_player_died() -> void:
     last_run_depth = depth
     last_run_kills = run_kills
     last_run_amber_banked = run_banked_amber + recovered
+    last_run_relics = run_relics.duplicate()
     state = STATE_GAMEOVER
     _clear_world()
     _clear_menu()
     title_label.text = "THE HOLLOW CLAIMED YOU"
     subtitle_label.text = "Half of your unbanked Amber made it back."
-    info_label.text = "Reached Depth %d/3 • Defeated %d • Amber secured %d\nRead what killed you, adjust the bargain, or retry the same loadout immediately." % [last_run_depth, last_run_kills, last_run_amber_banked]
+    info_label.text = "Reached Depth %d/3 • Defeated %d • Amber secured %d • Relics %d\nRead what killed you, adjust the bargain, or retry the same loadout immediately." % [last_run_depth, last_run_kills, last_run_amber_banked, last_run_relics.size()]
     _button("RETRY — SAME LOADOUT", _retry_same_loadout)
     _button("RETURN TO WARDEN'S REST", _show_hub)
     _button("TITLE", _show_title)
@@ -442,8 +516,8 @@ func _show_victory() -> void:
     _clear_world()
     _clear_menu()
     title_label.text = "THE HEARTWOOD BREAKS"
-    subtitle_label.text = "The three root veins fall quiet — for now."
-    info_label.text = "Cleared Depth 3/3 • Defeated %d • Amber secured %d\nReturn stronger, change your bargain, or descend again with the same loadout." % [last_run_kills, last_run_amber_banked]
+    subtitle_label.text = "Briar, bone, and ember fall quiet — for now."
+    info_label.text = "Cleared Depth 3/3 • Defeated %d • Amber secured %d • Relics %d\nReturn stronger, change your bargain, or descend again with the same loadout." % [last_run_kills, last_run_amber_banked, last_run_relics.size()]
     _button("DESCEND AGAIN — SAME LOADOUT", _retry_same_loadout)
     _button("RETURN TO WARDEN'S REST", _show_hub)
     _button("TITLE", _show_title)
@@ -468,7 +542,9 @@ func _buy_hp() -> void:
         return
     SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - cost
     SaveManager.save_data["max_hp_bonus"] = rank + 1
-    SaveManager.save_progress()
+    if not SaveManager.save_progress():
+        info_label.text = SaveManager.last_save_error
+        return
     hub_notice = "Vitality grew to rank %d/%d. Maximum HP increased by 1." % [rank + 1, HP_UPGRADE_CAP]
     _show_hub()
 
@@ -484,7 +560,9 @@ func _buy_damage() -> void:
         return
     SaveManager.save_data["root_amber"] = int(SaveManager.save_data.get("root_amber", 0)) - cost
     SaveManager.save_data["damage_bonus"] = rank + 1
-    SaveManager.save_progress()
+    if not SaveManager.save_progress():
+        info_label.text = SaveManager.last_save_error
+        return
     hub_notice = "Weapon Edge reached rank %d/%d. Base damage increased by 1." % [rank + 1, DAMAGE_UPGRADE_CAP]
     _show_hub()
 
@@ -498,7 +576,7 @@ func _show_settings() -> void:
     subtitle_label.text = "Make the Hollow readable and comfortable."
     info_label.text = "Changes save immediately."
     var master_volume: int = int(round(float(SaveManager.settings.get("master_volume", 0.8)) * 100.0))
-    var sfx_volume: int = int(round(float(SaveManager.settings.get("sfx_volume", 0.9)) * 100.0))
+    var sfx_volume: int = int(round(float(SaveManager.settings.get("sfx_volume", 0.8)) * 100.0))
     _button("MASTER VOLUME: %d%%" % master_volume, _cycle_master_volume)
     _button("SFX VOLUME: %d%%" % sfx_volume, _cycle_sfx_volume)
     if not OS.has_feature("web"):
@@ -528,14 +606,16 @@ func _cycle_setting_volume(key: String, fallback: float) -> void:
     if value < 0.0:
         value = 1.0
     SaveManager.settings[key] = snappedf(value, 0.2)
-    SaveManager.save_settings()
+    if not SaveManager.save_settings():
+        info_label.text = SaveManager.last_save_error
+        return
     _show_settings()
 
 func _cycle_master_volume() -> void:
     _cycle_setting_volume("master_volume", 0.8)
 
 func _cycle_sfx_volume() -> void:
-    _cycle_setting_volume("sfx_volume", 0.9)
+    _cycle_setting_volume("sfx_volume", 0.8)
 
 func _toggle_fullscreen() -> void:
     SaveManager.settings["fullscreen"] = not bool(SaveManager.settings.get("fullscreen", false))
@@ -562,7 +642,7 @@ func _refresh_info() -> void:
     if state != STATE_RUN or not is_instance_valid(player):
         return
     var message_suffix: String = " • " + message if message != "" else ""
-    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked %d • Enemies %d%s" % [player.hp, player.max_hp, depth, wave, run_amber, enemies.size(), message_suffix]
+    info_label.text = "HP %d/%d • Depth %d/3 • Encounter %d/4 • Unbanked %d • Relics %d • Enemies %d%s" % [player.hp, player.max_hp, depth, wave, run_amber, run_relics.size(), enemies.size(), message_suffix]
 
 func _clear_world() -> void:
     get_tree().paused = false
@@ -589,6 +669,12 @@ func _draw() -> void:
         draw_rect(Rect2(12, 26, 296, 140), floor_color)
         for x: int in range(18, 306, 24):
             draw_rect(Rect2(x, 30 + ((x * 7 + depth * 17) % 120), 2, 5), accent_color)
+        if depth == 2:
+            for y: int in range(42, 158, 26):
+                draw_line(Vector2(20, y), Vector2(300, y + 6), accent_color.darkened(0.15), 1.0)
+        elif depth == 3:
+            for x: int in range(28, 296, 34):
+                draw_line(Vector2(x, 38), Vector2(x + 10, 156), accent_color.darkened(0.05), 1.0)
         if attack_flash > 0.0 and is_instance_valid(player) and not bool(SaveManager.settings.get("reduce_flashes", false)):
             var attack_center: Vector2 = player.position + player.facing.normalized() * float(selected_weapon.get("reach", 13.0))
             draw_circle(attack_center, float(selected_weapon.get("radius", 15.0)), Color(0.95, 0.82, 0.43, 0.20))
