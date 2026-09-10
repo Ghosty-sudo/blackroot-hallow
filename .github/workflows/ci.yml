@@ -49,6 +49,17 @@ jobs:
             exit 1
           fi
 
+      - name: Automated gameplay smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/gameplay_smoke.gd 2>&1 | tee godot-gameplay-smoke.log
+          grep -Fq "BLACKROOT GAMEPLAY SMOKE PASSED" godot-gameplay-smoke.log
+          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT GAMEPLAY SMOKE FAILED" godot-gameplay-smoke.log; then
+            echo "Gameplay smoke emitted a failure"
+            exit 1
+          fi
+
       - name: Export Windows release build
         shell: bash
         run: |
