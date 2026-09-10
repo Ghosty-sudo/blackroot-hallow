@@ -108,9 +108,15 @@ func _run() -> void:
     await process_frame
     _check(int(game.get("state")) == 6, "depth-three guardian clear reaches victory")
 
+    var exit_code := 0
     if failures == 0:
         print("BLACKROOT GAMEPLAY SMOKE PASSED")
-        quit(0)
     else:
         push_error("BLACKROOT GAMEPLAY SMOKE FAILED: %d checks failed" % failures)
-        quit(1)
+        exit_code = 1
+
+    current_scene = null
+    game.queue_free()
+    await process_frame
+    await process_frame
+    quit(exit_code)
