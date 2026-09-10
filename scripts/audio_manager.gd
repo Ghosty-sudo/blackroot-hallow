@@ -22,7 +22,7 @@ func play_sfx(kind: String) -> void:
     player.play()
 
 func _make_stream(kind: String) -> AudioStreamWAV:
-    var spec := {
+    var spec: Array = {
         "attack": [520.0, 0.055, 0.22],
         "hit": [190.0, 0.045, 0.28],
         "kill": [120.0, 0.10, 0.30],
