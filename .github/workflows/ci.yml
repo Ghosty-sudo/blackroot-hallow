@@ -1,0 +1,45 @@
+name: Blackroot Hollow CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Structural verification
+        run: python3 tests/verify_structure.py
+
+      - name: Setup Godot 4.7.2
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+
+      - name: Verify Godot version
+        run: godot --version
+
+      - name: Import project headlessly
+        run: godot --headless --path . --editor --quit
+
+      - name: Export Windows release build
+        run: |
+          mkdir -p build/windows
+          godot --headless --path . --export-release "Windows Desktop" "build/windows/BlackrootHollow.exe"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlackrootHollow-Windows
+          path: build/windows/
+          if-no-files-found: error
