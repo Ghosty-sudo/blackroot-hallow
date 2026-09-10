@@ -10,6 +10,7 @@ required = [
     "scripts/enemy.gd",
     "scripts/save_manager.gd",
     "scripts/audio_manager.gd",
+    "scripts/touch_playtest.gd",
     "export_presets.cfg",
     "docs/GAME_DESIGN.md",
     "docs/ART_DIRECTION.md",
@@ -22,6 +23,7 @@ assert not missing, f"Missing required project files: {missing}"
 project = (root / "project.godot").read_text(encoding="utf-8")
 assert 'config/name="Blackroot Hollow"' in project
 assert 'AudioManager="*res://scripts/audio_manager.gd"' in project
+assert 'TouchPlaytest="*res://scripts/touch_playtest.gd"' in project
 
 save = (root / "scripts/save_manager.gd").read_text(encoding="utf-8")
 assert "CURRENT_SAVE_VERSION := 2" in save
@@ -38,8 +40,13 @@ player = (root / "scripts/player.gd").read_text(encoding="utf-8")
 assert "try_dodge" in player
 assert "dodge_timer" in player
 
+touch = (root / "scripts/touch_playtest.gd").read_text(encoding="utf-8")
+for token in ["InputEventScreenTouch", "InputEventScreenDrag", "ATTACK", "DODGE", "PAUSE"]:
+    assert token in touch
+
 preset = (root / "export_presets.cfg").read_text(encoding="utf-8")
 assert 'platform="Windows Desktop"' in preset
-assert 'application/product_version="0.2.0.0"' in preset
+assert 'platform="Web"' in preset
+assert 'application/product_version="0.2.1.0"' in preset
 
-print("Blackroot Hollow 0.2.0 structural verification passed.")
+print("Blackroot Hollow 0.2.1 structural verification passed.")
