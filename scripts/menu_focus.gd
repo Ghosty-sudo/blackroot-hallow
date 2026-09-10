@@ -1,7 +1,6 @@
 extends Node
 
 var recovery_notice_shown := false
-var styled_panel: PanelContainer
 var panel_style: StyleBoxFlat
 var button_normal: StyleBoxFlat
 var button_hover: StyleBoxFlat
@@ -58,8 +57,7 @@ func _style_scene(scene: Node) -> void:
         var layer := root_ui_value as CanvasLayer
         if layer.get_child_count() > 0 and layer.get_child(0) is PanelContainer:
             var panel := layer.get_child(0) as PanelContainer
-            if panel != styled_panel:
-                styled_panel = panel
+            if not panel.has_theme_stylebox_override("panel"):
                 panel.add_theme_stylebox_override("panel", panel_style)
 
     var title_value: Variant = scene.get("title_label")
