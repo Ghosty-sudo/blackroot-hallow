@@ -34,8 +34,8 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --editor --quit 2>&1 | tee godot-import.log
-          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-import.log; then
-            echo "Godot import emitted a parser/resource failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-import.log; then
+            echo "Godot import emitted an engine/parser/resource error"
             exit 1
           fi
 
@@ -44,8 +44,8 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --quit-after 20 2>&1 | tee godot-runtime.log
-          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-runtime.log; then
-            echo "Godot runtime emitted a parser/resource failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-runtime.log; then
+            echo "Godot runtime emitted an engine/parser/resource error"
             exit 1
           fi
 
@@ -55,8 +55,8 @@ jobs:
           set -o pipefail
           godot --headless --path . --script tests/gameplay_smoke.gd 2>&1 | tee godot-gameplay-smoke.log
           grep -Fq "BLACKROOT GAMEPLAY SMOKE PASSED" godot-gameplay-smoke.log
-          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT GAMEPLAY SMOKE FAILED" godot-gameplay-smoke.log; then
-            echo "Gameplay smoke emitted a failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT GAMEPLAY SMOKE FAILED" godot-gameplay-smoke.log; then
+            echo "Gameplay smoke emitted an engine or assertion failure"
             exit 1
           fi
 
@@ -68,8 +68,8 @@ jobs:
           godot --headless --path . --export-release "Windows Desktop" "build/windows/BlackrootHollow.exe" 2>&1 | tee godot-windows-export.log
           test -f build/windows/BlackrootHollow.exe
           test -f build/windows/BlackrootHollow.pck
-          if grep -E "SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-windows-export.log; then
-            echo "Windows export emitted a parser/resource failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-windows-export.log; then
+            echo "Windows export emitted an engine/parser/resource error"
             exit 1
           fi
 
