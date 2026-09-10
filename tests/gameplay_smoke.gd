@@ -44,6 +44,13 @@ func _menu_contains(game: Node, needle: String) -> bool:
             return true
     return false
 
+func _clear_live_enemies(game: Node) -> void:
+    var current_enemies: Array = game.get("enemies")
+    for enemy: Node in current_enemies:
+        if is_instance_valid(enemy):
+            enemy.queue_free()
+    current_enemies.clear()
+
 func _run() -> void:
     var packed := load("res://scenes/main.tscn") as PackedScene
     _check(packed != null, "main scene loads")
@@ -126,7 +133,6 @@ func _run() -> void:
     var relic_pool: Array = game.get("relic_pool")
     _check(relic_pool.size() == 6, "six coherent relic effects form the run pool")
 
-    # First guardian clear must become a run-shaping choice, not an automatic repeated floor.
     game.set("wave", 4)
     game.set("run_amber", 7)
     game.call("_advance_encounter")
@@ -144,15 +150,13 @@ func _run() -> void:
     _check(Array(game.get("run_relics")).size() == 1, "chosen relic is tracked in run identity")
     _check(int(game.get("wave")) == 1, "next biome begins after relic choice")
 
-    # Second depth uses its own guardian and grants another choice.
+    _clear_live_enemies(game)
     game.set("wave", 3)
     game.call("_advance_encounter")
     await process_frame
     var enemies_after: Array = game.get("enemies")
     _check(enemies_after.size() == 1 and String(enemies_after[0].get("archetype")) == "marrow_bell", "depth two guardian is mechanically distinct")
-    for enemy: Node in enemies_after:
-        enemy.queue_free()
-    game.set("enemies", [])
+    _clear_live_enemies(game)
     game.call("_advance_encounter")
     await process_frame
     _check(int(game.get("state")) == 8 and int(game.get("depth")) == 3, "second guardian clear opens final relic choice")
@@ -160,7 +164,6 @@ func _run() -> void:
     await process_frame
     _check(Array(game.get("run_relics")).size() == 2, "run carries two relics into final depth")
 
-    # Death/result path remains actionable after the new run-identity system.
     player = game.get("player")
     game.set("run_amber", 6)
     game.set("run_kills", 4)
@@ -174,16 +177,14 @@ func _run() -> void:
     await process_frame
     _check(int(game.get("state")) == 4 and Array(game.get("run_relics")).is_empty(), "retry starts a clean run build")
 
-    # Final guardian mapping and victory path.
+    _clear_live_enemies(game)
     game.set("depth", 3)
     game.set("wave", 3)
     game.call("_advance_encounter")
     await process_frame
     var final_enemies: Array = game.get("enemies")
     _check(final_enemies.size() == 1 and String(final_enemies[0].get("archetype")) == "ember_stag", "final depth uses Ember Stag guardian")
-    for enemy: Node in final_enemies:
-        enemy.queue_free()
-    game.set("enemies", [])
+    _clear_live_enemies(game)
     game.call("_advance_encounter")
     await process_frame
     _check(int(game.get("state")) == 6, "final guardian clear reaches victory")
