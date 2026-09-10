@@ -1,19 +1,19 @@
 # Blackroot Hollow
 
-Working title for a compact commercial pixel action-RPG targeting Steam/Windows.
+Compact commercial pixel action-RPG targeting Steam/Windows.
 
 ## Current maturity
-**Prototype / vertical-slice foundation — 0.1.0**
+**0.2.0 vertical-slice candidate**
 
-This repository seed intentionally starts with release-minded systems instead of a throwaway demo: persistent progression, persistent settings, keyboard/mouse and controller input, fullscreen toggle, pausing, a complete run loop, death handling, a boss gate, and a Windows export preset.
+Blackroot Hollow is being built release-first rather than as an open-ended prototype. The current repository contains the complete basic expedition loop, persistent progression/settings, three weapon rhythms, three Rootmark tradeoffs, dodge/iframes, a telegraphed boss attack, save backup/recovery, accessibility toggles, keyboard/mouse + controller support, and a Windows export pipeline.
 
-The current art is programmer pixel-art and the current campaign is a systems slice. It is not store-ready.
+The visuals and procedural sound effects are still development assets. The game is **not store-ready**.
 
 ## Engine
 - Godot 4.7.2 stable target
 - GDScript
-- 320×180 internal presentation, integer-friendly scaling
-- GL Compatibility renderer for broad PC support
+- 320×180 internal pixel presentation with integer-friendly scaling
+- GL Compatibility renderer for broad Windows support
 
 ## Run locally
 1. Install Godot 4.7.2.
@@ -21,14 +21,15 @@ The current art is programmer pixel-art and the current campaign is a systems sl
 3. Run the project.
 
 ## Controls
-- Move: WASD / Arrow keys / left stick
+- Move: WASD / Arrow keys / controller left stick
 - Attack: Space / left mouse / controller A
+- Dodge: Shift / controller B
 - Pause: Escape / controller Start
 
 ## Core loop
-Warden's Rest → choose a Rootmark → descend through encounters → defeat Heartwood guardians → bank Root Amber → buy permanent upgrades → descend again.
+Warden's Rest → choose a weapon → choose a Rootmark → descend → clear encounters → defeat a guardian → bank Root Amber → buy permanent upgrades → descend again.
 
-Rootmarks are the identity system: each gives a strong advantage and a meaningful drawback.
+Rootmarks are the identity system: every one gives a strong advantage and a meaningful drawback.
 
 ## Release target
-Small premium Steam game, initially Windows x64. Target scope is a polished 2–4 hour first clear with replayability rather than a large open-world RPG.
+A small premium Steam game for Windows x64. The scope target is a polished 2–4 hour first clear with replayability rather than a sprawling RPG.

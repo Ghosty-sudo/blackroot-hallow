@@ -32,6 +32,9 @@ jobs:
       - name: Import project headlessly
         run: godot --headless --path . --editor --quit
 
+      - name: Runtime smoke
+        run: godot --headless --path . --quit-after 20
+
       - name: Export Windows release build
         run: |
           mkdir -p build/windows

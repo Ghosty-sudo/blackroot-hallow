@@ -15,7 +15,6 @@ window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
-window/handheld/orientation=1
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
@@ -28,6 +27,7 @@ default_bus_layout="res://default_bus_layout.tres"
 
 [autoload]
 SaveManager="*res://scripts/save_manager.gd"
+AudioManager="*res://scripts/audio_manager.gd"
 
 [debug]
 gdscript/warnings/unused_parameter=1
