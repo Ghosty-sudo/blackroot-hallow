@@ -179,6 +179,8 @@ func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
     var info_value: Variant = game.get("info_label")
 
     if gameplay_active:
+        if gameplay_panel_style == null:
+            _build_styles()
         panel.position = Vector2(8, 5)
         panel.size = Vector2(304, 68)
         panel.add_theme_stylebox_override("panel", gameplay_panel_style)
