@@ -28,15 +28,43 @@ jobs:
           use-dotnet: false
           include-templates: true
 
+      - name: Ensure single-threaded Web template
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          if [ ! -f "$TEMPLATE_DIR/web_nothreads_release.zip" ] && [ -f "$HOME/downloads/export_templates.zip" ]; then
+            unzip -j -o "$HOME/downloads/export_templates.zip" 'templates/web_nothreads_release.zip' -d "$TEMPLATE_DIR" || true
+            unzip -j -o "$HOME/downloads/export_templates.zip" 'web_nothreads_release.zip' -d "$TEMPLATE_DIR" || true
+          fi
+          echo "Installed export templates:"
+          find "$TEMPLATE_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
+          test -f "$TEMPLATE_DIR/web_nothreads_release.zip"
+
       - name: Import project
-        run: godot --headless --path . --editor --quit
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --editor --quit 2>&1 | tee godot-web-import.log
+          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-web-import.log; then
+            echo "Godot Web import emitted a parser/resource failure"
+            exit 1
+          fi
 
       - name: Export browser playtest
+        shell: bash
         run: |
+          set -o pipefail
           mkdir -p build/web
-          godot --headless --path . --export-release "Web" "build/web/index.html"
+          godot --headless --verbose --path . --export-release "Web" "build/web/index.html" 2>&1 | tee godot-web-export.log
           test -f build/web/index.html
           test -f build/web/index.wasm
+          test -f build/web/index.pck
+          if grep -E "SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-web-export.log; then
+            echo "Godot Web export emitted a parser/resource failure"
+            exit 1
+          fi
           touch build/web/.nojekyll
 
       - name: Configure Pages
