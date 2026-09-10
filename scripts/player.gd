@@ -94,10 +94,7 @@ func _movement_input() -> Vector2:
     if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): move.x += 1.0
     if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): move.y -= 1.0
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): move.y += 1.0
-    var joy := Vector2(
-        Input.get_joy_axis(0, JOY_AXIS_LEFT_X),
-        Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
-    )
+    var joy := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
     if joy.length() > 0.25:
         move = joy
     return move
@@ -151,8 +148,7 @@ func take_damage(amount: int, source_position: Vector2 = Vector2.INF) -> void:
     hp = maxi(0, hp - final_damage)
     hurt_cooldown = 0.65
     if source_position != Vector2.INF:
-        var away := (position - source_position).normalized()
-        knockback_velocity += away * 95.0
+        knockback_velocity += (position - source_position).normalized() * 95.0
     AudioManager.play_sfx("hurt")
     hurt.emit(final_damage)
     hp_changed.emit(hp, max_hp)
@@ -173,13 +169,44 @@ func _clamp_to_bounds() -> void:
 
 func _draw() -> void:
     var flicker := hurt_cooldown > 0.0 and int(hurt_cooldown * 18.0) % 2 == 0
-    var body_color := Color.WHITE if flicker else Color("e7d6ad")
+    var skin := Color.WHITE if flicker else Color("d9ba91")
+    var cloak := Color("394b3d")
+    var trim := Color("b99b55")
     if dodge_timer > 0.0:
-        body_color = Color(0.75, 0.95, 1.0, 0.65)
-    draw_rect(Rect2(-4, -5, 8, 10), body_color)
-    draw_rect(Rect2(-3, -9, 6, 4), Color("352a31"))
-    draw_rect(Rect2(-5, 4, 4, 3), Color("674244"))
-    draw_rect(Rect2(1, 4, 4, 3), Color("674244"))
-    draw_rect(Rect2(-5, -3, 2, 5), Color("445a46"))
-    var tip := facing.normalized() * (12.0 if weapon.get("id", "") != "pike" else 17.0)
-    draw_line(Vector2.ZERO, tip, Color("d9cfb9"), 2.0)
+        cloak = Color(0.45, 0.72, 0.74, 0.62)
+        skin = Color(0.78, 0.95, 0.95, 0.68)
+
+    draw_ellipse_shadow()
+    # Boots and cloak make the Warden read as a character rather than a collision block.
+    draw_rect(Rect2(-5, 4, 4, 3), Color("452f31"))
+    draw_rect(Rect2(1, 4, 4, 3), Color("452f31"))
+    draw_colored_polygon(PackedVector2Array([Vector2(-5,-4), Vector2(5,-4), Vector2(6,4), Vector2(0,7), Vector2(-6,4)]), cloak)
+    draw_rect(Rect2(-5, -4, 2, 7), trim.darkened(0.18))
+    draw_rect(Rect2(-3, -9, 6, 6), skin)
+    draw_rect(Rect2(-4, -10, 8, 3), Color("2a2329"))
+    draw_rect(Rect2(-4, -8, 2, 4), Color("2a2329"))
+    if facing.y >= -0.4:
+        draw_rect(Rect2(-2, -7, 1, 1), Color("241d20"))
+        draw_rect(Rect2(1, -7, 1, 1), Color("241d20"))
+
+    var direction := facing.normalized()
+    var side := Vector2(-direction.y, direction.x)
+    var hand := direction * 3.0 + side * 2.0
+    var weapon_id := String(weapon.get("id", "blade"))
+    if weapon_id == "pike":
+        var tip := direction * 19.0
+        draw_line(hand - direction * 4.0, tip, Color("80633f"), 2.0)
+        draw_colored_polygon(PackedVector2Array([tip, tip - direction * 5.0 + side * 2.0, tip - direction * 5.0 - side * 2.0]), Color("d9d2bf"))
+    elif weapon_id == "cleaver":
+        var haft_end := direction * 11.0
+        draw_line(hand, haft_end, Color("765538"), 2.0)
+        draw_colored_polygon(PackedVector2Array([haft_end + side * 4.0, haft_end - side * 4.0, haft_end + direction * 6.0 - side * 2.0, haft_end + direction * 6.0 + side * 3.0]), Color("c4beb0"))
+    else:
+        var blade_tip := direction * 14.0
+        draw_line(hand, blade_tip, Color("d7d2c3"), 2.0)
+        draw_line(hand - side * 3.0, hand + side * 3.0, trim, 2.0)
+
+func draw_ellipse_shadow() -> void:
+    draw_set_transform(Vector2(0, 7), 0.0, Vector2(1.0, 0.45))
+    draw_circle(Vector2.ZERO, 7.0, Color(0, 0, 0, 0.28))
+    draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
