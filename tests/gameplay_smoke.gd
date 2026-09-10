@@ -1,6 +1,7 @@
 extends SceneTree
 
 var failures := 0
+const GAME_SIZE := Vector2(320.0, 180.0)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -11,6 +12,28 @@ func _check(condition: bool, label: String) -> void:
     else:
         failures += 1
         push_error("FAIL: " + label)
+
+func _screen_from_game(game_position: Vector2) -> Vector2:
+    var visible_size := root.get_visible_rect().size
+    if visible_size.x <= 0.0 or visible_size.y <= 0.0 or visible_size.is_equal_approx(GAME_SIZE):
+        return game_position
+    var fit_scale := minf(visible_size.x / GAME_SIZE.x, visible_size.y / GAME_SIZE.y)
+    var rendered_size := GAME_SIZE * fit_scale
+    var offset := (visible_size - rendered_size) * 0.5
+    return offset + game_position * fit_scale
+
+func _touch_event(index: int, game_position: Vector2, pressed: bool) -> InputEventScreenTouch:
+    var event := InputEventScreenTouch.new()
+    event.index = index
+    event.position = _screen_from_game(game_position)
+    event.pressed = pressed
+    return event
+
+func _drag_event(index: int, game_position: Vector2) -> InputEventScreenDrag:
+    var event := InputEventScreenDrag.new()
+    event.index = index
+    event.position = _screen_from_game(game_position)
+    return event
 
 func _run() -> void:
     var packed := load("res://scenes/main.tscn") as PackedScene
@@ -48,20 +71,26 @@ func _run() -> void:
     _check(player != null and is_instance_valid(player), "player spawned")
     _check(enemies.size() >= 3, "first encounter spawned")
 
-    if player != null and is_instance_valid(player):
-        var touch := root.get_node_or_null("TouchPlaytest")
-        _check(touch != null, "touch adapter autoload exists")
-        if touch != null:
-            touch.set("touch_device", true)
-            touch.set("move_vector", Vector2.RIGHT)
-            var before_touch := player.position
-            touch.call("_process", 0.10)
-            _check(player.position.x > before_touch.x, "touch movement moves player")
-            touch.set("move_vector", Vector2.ZERO)
+    var touch := root.get_node_or_null("TouchPlaytest")
+    _check(touch != null, "touch adapter autoload exists")
+    if player != null and is_instance_valid(player) and touch != null:
+        touch.set("touch_device", true)
+        if touch.get("hud") == null:
+            touch.call("_build_styles")
+            touch.call("_build_hud")
 
-            var footer: Variant = game.get("footer_label")
-            if footer is Label:
-                _check(not (footer as Label).visible, "mobile combat hides desktop footer")
+        # Exercise the real ScreenTouch + ScreenDrag path used by phones.
+        var before_touch := player.position
+        touch.call("_input", _touch_event(1, Vector2(35, 145), true))
+        touch.call("_input", _drag_event(1, Vector2(67, 145)))
+        touch.call("_process", 0.10)
+        touch.call("_input", _touch_event(1, Vector2(67, 145), false))
+        _check(player.position.x > before_touch.x, "screen-drag movement moves player")
+        _check(Vector2(touch.get("move_vector")) == Vector2.ZERO, "movement releases cleanly")
+
+        var footer: Variant = game.get("footer_label")
+        if footer is Label:
+            _check(not (footer as Label).visible, "mobile combat hides desktop footer")
 
         enemies = game.get("enemies")
         if enemies.size() > 0:
@@ -70,20 +99,26 @@ func _run() -> void:
             enemy.position = player.position + Vector2(13, 0)
             var hp_before: int = int(enemy.get("hp"))
             player.set("attack_cooldown", 0.0)
-            game.call("_do_attack")
-            _check(int(enemy.get("hp")) < hp_before, "attack damages enemy in range")
+            touch.call("_input", _touch_event(2, Vector2(286, 142), true))
+            touch.call("_input", _touch_event(2, Vector2(286, 142), false))
+            _check(int(enemy.get("hp")) < hp_before, "ATTACK touch damages enemy in range")
+            _check(int(touch.get("attack_touch_id")) == -1, "attack touch releases cleanly")
 
         player.set("dodge_cooldown", 0.0)
         player.set("dodge_timer", 0.0)
-        var dodged: bool = bool(player.call("try_dodge"))
-        _check(dodged, "dodge starts")
-        _check(float(player.get("dodge_timer")) > 0.0, "dodge grants active dodge window")
-        _check(not bool(player.call("try_dodge")), "dodge cannot retrigger during cooldown")
+        touch.call("_input", _touch_event(3, Vector2(226, 152), true))
+        _check(float(player.get("dodge_timer")) > 0.0, "DODGE touch starts dodge window")
+        var cooldown_after_first := float(player.get("dodge_cooldown"))
+        touch.call("_input", _touch_event(3, Vector2(226, 152), true))
+        _check(float(player.get("dodge_cooldown")) == cooldown_after_first, "DODGE touch cannot retrigger during cooldown")
+        touch.call("_input", _touch_event(3, Vector2(226, 152), false))
 
-    game.call("_toggle_pause")
-    _check(paused, "pause toggles on")
-    game.call("_toggle_pause")
-    _check(not paused, "pause toggles off")
+        touch.call("_input", _touch_event(4, Vector2(292, 20), true))
+        _check(paused, "PAUSE touch pauses")
+        touch.call("_input", _touch_event(4, Vector2(292, 20), false))
+        touch.call("_input", _touch_event(5, Vector2(292, 20), true))
+        _check(not paused, "PAUSE touch resumes")
+        touch.call("_input", _touch_event(5, Vector2(292, 20), false))
 
     game.call("_start_run", marks[1])
     game.set("wave", 3)

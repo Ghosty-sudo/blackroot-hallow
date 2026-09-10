@@ -47,8 +47,8 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --editor --quit 2>&1 | tee godot-web-import.log
-          if grep -E "SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-web-import.log; then
-            echo "Godot Web import emitted a parser/resource failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-web-import.log; then
+            echo "Godot Web import emitted an engine/parser/resource error"
             exit 1
           fi
 
@@ -61,8 +61,8 @@ jobs:
           test -f build/web/index.html
           test -f build/web/index.wasm
           test -f build/web/index.pck
-          if grep -E "SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-web-export.log; then
-            echo "Godot Web export emitted a parser/resource failure"
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-web-export.log; then
+            echo "Godot Web export emitted an engine/parser/resource error"
             exit 1
           fi
 

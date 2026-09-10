@@ -11,6 +11,8 @@ required = [
     "scripts/save_manager.gd",
     "scripts/audio_manager.gd",
     "scripts/touch_playtest.gd",
+    "tests/gameplay_smoke.gd",
+    "web/patch_mobile_shell.py",
     "export_presets.cfg",
     "docs/GAME_DESIGN.md",
     "docs/ART_DIRECTION.md",
@@ -41,12 +43,20 @@ assert "try_dodge" in player
 assert "dodge_timer" in player
 
 touch = (root / "scripts/touch_playtest.gd").read_text(encoding="utf-8")
-for token in ["InputEventScreenTouch", "InputEventScreenDrag", "ATTACK", "DODGE", "PAUSE"]:
+for token in ["InputEventScreenTouch", "InputEventScreenDrag", "ATTACK", "DODGE", "PAUSE", "gameplay_panel_style"]:
     assert token in touch
+
+smoke = (root / "tests/gameplay_smoke.gd").read_text(encoding="utf-8")
+for token in ["InputEventScreenTouch", "InputEventScreenDrag", "BLACKROOT GAMEPLAY SMOKE PASSED"]:
+    assert token in smoke
+
+shell = (root / "web/patch_mobile_shell.py").read_text(encoding="utf-8")
+assert "blackroot-mobile-landscape" in shell
+assert "Rotate your phone to landscape" in shell
 
 preset = (root / "export_presets.cfg").read_text(encoding="utf-8")
 assert 'platform="Windows Desktop"' in preset
 assert 'platform="Web"' in preset
-assert 'application/product_version="0.2.1.0"' in preset
+assert 'application/product_version="0.2.2.0"' in preset
 
-print("Blackroot Hollow 0.2.1 structural verification passed.")
+print("Blackroot Hollow 0.2.2 structural verification passed.")

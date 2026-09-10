@@ -3,11 +3,11 @@
 Compact commercial pixel action-RPG targeting Steam/Windows.
 
 ## Current maturity
-**0.2.1 vertical-slice phone-playtest candidate**
+**0.2.2 vertical-slice mobile-playtest candidate**
 
-Blackroot Hollow is being built release-first rather than as an open-ended prototype. The current repository contains the complete basic expedition loop, persistent progression/settings, three weapon rhythms, three Rootmark tradeoffs, dodge/iframes, a telegraphed boss attack, save backup/recovery, accessibility toggles, keyboard/mouse + controller support, a Windows export pipeline, and a touch overlay for rapid browser playtesting from phones.
+Blackroot Hollow is being built release-first rather than as an open-ended prototype. The current repository contains the complete basic expedition loop, persistent progression/settings, three weapon rhythms, three Rootmark tradeoffs, dodge/iframes, a telegraphed boss attack, save backup/recovery, accessibility toggles, keyboard/mouse + controller support, a Windows export pipeline, and a touch playtest layer for phones.
 
-The visuals and procedural sound effects are still development assets. The game is **not store-ready**. Phone controls are a playtest convenience; the commercial release target remains Steam/Windows PC.
+The visuals and procedural sound effects are still development assets. The game is **not store-ready**. Phone controls are a rapid-playtest convenience; the commercial release target remains Steam/Windows PC.
 
 ## Engine
 - Godot 4.7.2 stable target
@@ -16,7 +16,12 @@ The visuals and procedural sound effects are still development assets. The game 
 - GL Compatibility renderer for broad Windows support
 
 ## Browser playtest
-Open `https://ghosty-sudo.github.io/blackroot-hallow/` in a current browser. On a touchscreen phone, rotate to landscape for the intended test layout. Touch controls appear automatically during gameplay.
+Open `https://ghosty-sudo.github.io/blackroot-hallow/` in a current browser.
+
+On a touchscreen phone, portrait mode now shows a rotate prompt instead of squeezing the game into a tall browser viewport. Rotate to landscape for combat. The Web shell fills the available browser viewport, the combat HUD compacts, desktop-only instructions disappear, and touch controls use smaller visuals with larger invisible hit areas.
+
+## Automated QA
+CI performs structural checks, Godot import/runtime checks, a scripted gameplay smoke, and a Windows release export. The gameplay smoke traverses menus and core state changes and exercises real ScreenTouch/ScreenDrag event paths for movement, attack, dodge, and pause/resume. Automated QA catches obvious runtime/state regressions but does not replace human feel/readability/balance testing.
 
 ## Run locally
 1. Install Godot 4.7.2.
@@ -28,10 +33,10 @@ Open `https://ghosty-sudo.github.io/blackroot-hallow/` in a current browser. On 
 - Desktop attack: Space / left mouse / controller A
 - Desktop dodge: Shift / controller B
 - Desktop pause: Escape / controller Start
-- Phone playtest move: drag inside the MOVE zone
+- Phone playtest move: drag inside the MOVE area
 - Phone playtest attack: hold/tap ATTACK
 - Phone playtest dodge: tap DODGE
-- Phone playtest pause/resume: tap PAUSE
+- Phone playtest pause/resume: tap PAUSE/RESUME
 
 ## Core loop
 Warden's Rest → choose a weapon → choose a Rootmark → descend → clear encounters → defeat a guardian → bank Root Amber → buy permanent upgrades → descend again.
