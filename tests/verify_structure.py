@@ -17,6 +17,7 @@ required = [
     "docs/GAME_DESIGN.md",
     "docs/ART_DIRECTION.md",
     "docs/RELEASE_ROADMAP.md",
+    "docs/QA_MATRIX.md",
     "CHANGELOG.md",
 ]
 missing = [p for p in required if not (root / p).exists()]
@@ -39,24 +40,33 @@ assert "briar_warden" in game
 assert "_dodge_pressed" in game
 
 player = (root / "scripts/player.gd").read_text(encoding="utf-8")
-assert "try_dodge" in player
-assert "dodge_timer" in player
+for token in ["try_dodge", "try_dodge_direction", "dodge_timer", "dodge_input_locked", "_begin_dodge"]:
+    assert token in player
+
+enemy = (root / "scripts/enemy.gd").read_text(encoding="utf-8")
+for token in ["hit_flash_timer", "blackroot_enemies", "_apply_separation"]:
+    assert token in enemy
 
 touch = (root / "scripts/touch_playtest.gd").read_text(encoding="utf-8")
-for token in ["InputEventScreenTouch", "InputEventScreenDrag", "ATTACK", "DODGE", "PAUSE", "gameplay_panel_style"]:
+for token in ["InputEventScreenTouch", "InputEventScreenDrag", "ATTACK", "DODGE", "PAUSE", "gameplay_panel_style", "NOTIFICATION_APPLICATION_FOCUS_OUT", "try_dodge_direction"]:
     assert token in touch
 
 smoke = (root / "tests/gameplay_smoke.gd").read_text(encoding="utf-8")
-for token in ["InputEventScreenTouch", "InputEventScreenDrag", "BLACKROOT GAMEPLAY SMOKE PASSED"]:
+for token in ["InputEventScreenTouch", "InputEventScreenDrag", "touch dodge follows active thumb direction", "held desktop dodge does not auto-repeat", "overlapping enemies separate", "BLACKROOT GAMEPLAY SMOKE PASSED"]:
     assert token in smoke
 
 shell = (root / "web/patch_mobile_shell.py").read_text(encoding="utf-8")
 assert "blackroot-mobile-landscape" in shell
 assert "Rotate your phone to landscape" in shell
+assert "safe-area-inset-left" in shell
+assert "safe-area-inset-right" in shell
 
 preset = (root / "export_presets.cfg").read_text(encoding="utf-8")
 assert 'platform="Windows Desktop"' in preset
 assert 'platform="Web"' in preset
-assert 'application/product_version="0.2.2.0"' in preset
+assert 'application/product_version="0.2.3.0"' in preset
 
-print("Blackroot Hollow 0.2.2 structural verification passed.")
+for staging in root.rglob("*_v023.tmp"):
+    raise AssertionError(f"Staging file leaked into release tree: {staging.relative_to(root)}")
+
+print("Blackroot Hollow 0.2.3 structural verification passed.")

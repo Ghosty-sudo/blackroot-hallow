@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.3 — Control Reliability + Combat Readability
+- Made desktop dodge one activation per key/button press instead of allowing a held input to fire again as soon as cooldown expires.
+- Added directional touch dodge so an active movement drag determines dodge direction instead of relying on stale facing.
+- Added focus-loss touch cleanup to prevent stuck movement or attack state after browser/app interruption.
+- Added clearer pressed/ready feedback to mobile controls and reduced their visual footprint again without shrinking hit targets.
+- Compacted the mobile combat HUD further by hiding the subtitle during active encounters.
+- Added regular-enemy hit flashes and damage health bars for clearer attack feedback.
+- Added light enemy separation so regular enemies do not collapse into one unreadable stack.
+- Updated the Web shell so landscape gameplay respects device safe-area insets around phone notches and browser edges.
+- Expanded automated gameplay QA for directional touch dodge, stuck-touch cleanup, desktop dodge repeat prevention, enemy hit feedback, and enemy separation.
+
 ## 0.2.2 — Mobile Landscape + Automated Gameplay QA
 - Reworked the phone playtest presentation around landscape instead of allowing a squeezed portrait gameplay view.
 - Added a mobile Web shell that fills the available browser viewport, blocks overscroll, respects safe-area insets, and shows a dedicated rotate prompt in portrait.

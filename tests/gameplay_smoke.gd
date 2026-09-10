@@ -79,7 +79,6 @@ func _run() -> void:
             touch.call("_build_styles")
             touch.call("_build_hud")
 
-        # Exercise the real ScreenTouch + ScreenDrag path used by phones.
         var before_touch := player.position
         touch.call("_input", _touch_event(1, Vector2(35, 145), true))
         touch.call("_input", _drag_event(1, Vector2(67, 145)))
@@ -91,6 +90,9 @@ func _run() -> void:
         var footer: Variant = game.get("footer_label")
         if footer is Label:
             _check(not (footer as Label).visible, "mobile combat hides desktop footer")
+        var subtitle: Variant = game.get("subtitle_label")
+        if subtitle is Label:
+            _check(not (subtitle as Label).visible, "mobile combat hides subtitle for field space")
 
         enemies = game.get("enemies")
         if enemies.size() > 0:
@@ -99,26 +101,63 @@ func _run() -> void:
             enemy.position = player.position + Vector2(13, 0)
             var hp_before: int = int(enemy.get("hp"))
             player.set("attack_cooldown", 0.0)
-            touch.call("_input", _touch_event(2, Vector2(286, 142), true))
-            touch.call("_input", _touch_event(2, Vector2(286, 142), false))
+            touch.call("_input", _touch_event(2, Vector2(286, 146), true))
+            touch.call("_input", _touch_event(2, Vector2(286, 146), false))
             _check(int(enemy.get("hp")) < hp_before, "ATTACK touch damages enemy in range")
+            _check(float(enemy.get("hit_flash_timer")) > 0.0, "enemy hit feedback starts")
             _check(int(touch.get("attack_touch_id")) == -1, "attack touch releases cleanly")
 
+        # Keep a movement drag active while dodging. Touch dodge must use the thumb vector,
+        # not a stale player facing direction.
         player.set("dodge_cooldown", 0.0)
         player.set("dodge_timer", 0.0)
-        touch.call("_input", _touch_event(3, Vector2(226, 152), true))
+        player.set("facing", Vector2.UP)
+        touch.call("_input", _touch_event(6, Vector2(35, 145), true))
+        touch.call("_input", _drag_event(6, Vector2(67, 145)))
+        touch.call("_input", _touch_event(3, Vector2(230, 152), true))
         _check(float(player.get("dodge_timer")) > 0.0, "DODGE touch starts dodge window")
+        _check(Vector2(player.get("dodge_direction")).x > 0.8, "touch dodge follows active thumb direction")
         var cooldown_after_first := float(player.get("dodge_cooldown"))
-        touch.call("_input", _touch_event(3, Vector2(226, 152), true))
+        touch.call("_input", _touch_event(3, Vector2(230, 152), true))
         _check(float(player.get("dodge_cooldown")) == cooldown_after_first, "DODGE touch cannot retrigger during cooldown")
-        touch.call("_input", _touch_event(3, Vector2(226, 152), false))
+        touch.call("_input", _touch_event(3, Vector2(230, 152), false))
+        touch.call("_input", _touch_event(6, Vector2(67, 145), false))
 
-        touch.call("_input", _touch_event(4, Vector2(292, 20), true))
+        # Simulate the cleanup required when a browser loses focus mid-touch.
+        touch.set("move_touch_id", 9)
+        touch.set("attack_touch_id", 10)
+        touch.set("move_vector", Vector2.LEFT)
+        touch.call("_reset_touches")
+        _check(int(touch.get("move_touch_id")) == -1 and int(touch.get("attack_touch_id")) == -1, "focus cleanup releases touch ids")
+        _check(Vector2(touch.get("move_vector")) == Vector2.ZERO, "focus cleanup clears movement")
+
+        touch.call("_input", _touch_event(4, Vector2(292, 18), true))
         _check(paused, "PAUSE touch pauses")
-        touch.call("_input", _touch_event(4, Vector2(292, 20), false))
-        touch.call("_input", _touch_event(5, Vector2(292, 20), true))
+        touch.call("_input", _touch_event(4, Vector2(292, 18), false))
+        touch.call("_input", _touch_event(5, Vector2(292, 18), true))
         _check(not paused, "PAUSE touch resumes")
-        touch.call("_input", _touch_event(5, Vector2(292, 20), false))
+        touch.call("_input", _touch_event(5, Vector2(292, 18), false))
+
+        # Desktop dodge is edge-like: holding the key/button must not automatically fire again
+        # the instant its cooldown ends.
+        player.set("dodge_timer", 0.0)
+        player.set("dodge_cooldown", 0.0)
+        player.set("dodge_input_locked", false)
+        _check(bool(player.call("_begin_dodge", Vector2.RIGHT, true)), "desktop dodge starts once")
+        player.set("dodge_timer", 0.0)
+        player.set("dodge_cooldown", 0.0)
+        _check(not bool(player.call("_begin_dodge", Vector2.RIGHT, true)), "held desktop dodge does not auto-repeat")
+        player.call("_process", 0.0)
+        _check(not bool(player.get("dodge_input_locked")), "desktop dodge unlocks after release")
+
+        enemies = game.get("enemies")
+        if enemies.size() >= 2:
+            var enemy_a: Node2D = enemies[0]
+            var enemy_b: Node2D = enemies[1]
+            enemy_a.position = Vector2(120, 100)
+            enemy_b.position = Vector2(120, 100)
+            enemy_a.call("_apply_separation", 0.20)
+            _check(enemy_a.position.distance_to(enemy_b.position) > 0.1, "overlapping enemies separate")
 
     game.call("_start_run", marks[1])
     game.set("wave", 3)

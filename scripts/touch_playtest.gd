@@ -7,13 +7,13 @@ const GAME_SIZE := Vector2(320.0, 180.0)
 
 # Hit areas stay generous; visuals are intentionally smaller so they do not bury the playfield.
 const MOVE_ZONE := Rect2(6.0, 112.0, 104.0, 62.0)
-const MOVE_VISUAL := Rect2(14.0, 124.0, 76.0, 42.0)
+const MOVE_VISUAL := Rect2(16.0, 132.0, 62.0, 32.0)
 const ATTACK_ZONE := Rect2(250.0, 112.0, 66.0, 60.0)
-const ATTACK_VISUAL := Rect2(264.0, 124.0, 44.0, 36.0)
+const ATTACK_VISUAL := Rect2(270.0, 132.0, 38.0, 28.0)
 const DODGE_ZONE := Rect2(194.0, 128.0, 62.0, 46.0)
-const DODGE_VISUAL := Rect2(208.0, 139.0, 42.0, 28.0)
+const DODGE_VISUAL := Rect2(216.0, 143.0, 36.0, 22.0)
 const PAUSE_ZONE := Rect2(268.0, 6.0, 48.0, 28.0)
-const PAUSE_VISUAL := Rect2(276.0, 10.0, 36.0, 20.0)
+const PAUSE_VISUAL := Rect2(280.0, 10.0, 32.0, 16.0)
 const MOVE_RADIUS := 30.0
 
 var touch_device := false
@@ -41,6 +41,10 @@ func _ready() -> void:
     set_process(touch_device)
     set_process_input(touch_device)
 
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        _reset_touches()
+
 func _detect_touch_device() -> bool:
     return DisplayServer.is_touchscreen_available() or OS.has_feature("web_android") or OS.has_feature("web_ios")
 
@@ -55,13 +59,13 @@ func _process(delta: float) -> void:
         _reset_touches()
         return
 
+    var player: Node2D = _get_player(game)
     if pause_label != null:
         pause_label.text = "RESUME" if get_tree().paused else "PAUSE"
+    _sync_control_feedback(player)
 
     if get_tree().paused:
         return
-
-    var player: Node2D = _get_player(game)
     if player == null:
         return
 
@@ -105,8 +109,11 @@ func _input(event: InputEvent) -> void:
 
             if DODGE_ZONE.has_point(game_position):
                 var dodge_player := _get_player(game)
-                if dodge_player != null and dodge_player.has_method("try_dodge"):
-                    dodge_player.call("try_dodge")
+                if dodge_player != null:
+                    if dodge_player.has_method("try_dodge_direction"):
+                        dodge_player.call("try_dodge_direction", move_vector)
+                    elif dodge_player.has_method("try_dodge"):
+                        dodge_player.call("try_dodge")
                 get_viewport().set_input_as_handled()
                 return
 
@@ -154,6 +161,15 @@ func _get_player(game: Node) -> Node2D:
         return candidate as Node2D
     return null
 
+func _sync_control_feedback(player: Node2D) -> void:
+    if move_label != null:
+        move_label.modulate = Color.WHITE if move_touch_id >= 0 else Color(1.0, 1.0, 1.0, 0.72)
+    if attack_label != null:
+        attack_label.modulate = Color.WHITE if attack_touch_id >= 0 else Color(1.0, 1.0, 1.0, 0.72)
+    if dodge_label != null:
+        var dodge_ready := player != null and float(player.get("dodge_cooldown")) <= 0.0 and float(player.get("dodge_timer")) <= 0.0
+        dodge_label.modulate = Color.WHITE if dodge_ready else Color(1.0, 1.0, 1.0, 0.38)
+
 func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
     if game == null:
         return
@@ -182,20 +198,19 @@ func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
         if gameplay_panel_style == null:
             _build_styles()
         panel.position = Vector2(8, 5)
-        panel.size = Vector2(304, 68)
+        panel.size = Vector2(304, 52)
         panel.add_theme_stylebox_override("panel", gameplay_panel_style)
 
         if footer_value is Label:
-            var footer := footer_value as Label
-            footer.visible = false
+            (footer_value as Label).visible = false
         if title_value is Label:
-            (title_value as Label).add_theme_font_size_override("font_size", 12)
+            (title_value as Label).add_theme_font_size_override("font_size", 10)
         if subtitle_value is Label:
-            (subtitle_value as Label).add_theme_font_size_override("font_size", 7)
+            (subtitle_value as Label).visible = false
         if info_value is Label:
             var info := info_value as Label
-            info.add_theme_font_size_override("font_size", 7)
-            info.custom_minimum_size = Vector2(0, 20)
+            info.add_theme_font_size_override("font_size", 6)
+            info.custom_minimum_size = Vector2(0, 16)
     else:
         panel.position = Vector2(8, 7)
         panel.size = Vector2(304, 166)
@@ -208,7 +223,9 @@ func _sync_mobile_layout(game: Node, gameplay_active: bool) -> void:
         if title_value is Label:
             (title_value as Label).add_theme_font_size_override("font_size", 15)
         if subtitle_value is Label:
-            (subtitle_value as Label).add_theme_font_size_override("font_size", 8)
+            var subtitle := subtitle_value as Label
+            subtitle.visible = true
+            subtitle.add_theme_font_size_override("font_size", 8)
         if info_value is Label:
             var info := info_value as Label
             info.add_theme_font_size_override("font_size", 8)
@@ -232,8 +249,8 @@ func _to_game_position(screen_position: Vector2) -> Vector2:
 
 func _build_styles() -> void:
     gameplay_panel_style = StyleBoxFlat.new()
-    gameplay_panel_style.bg_color = Color(0.02, 0.035, 0.028, 0.76)
-    gameplay_panel_style.border_color = Color(0.25, 0.34, 0.22, 0.68)
+    gameplay_panel_style.bg_color = Color(0.02, 0.035, 0.028, 0.72)
+    gameplay_panel_style.border_color = Color(0.25, 0.34, 0.22, 0.62)
     gameplay_panel_style.border_width_left = 1
     gameplay_panel_style.border_width_top = 1
     gameplay_panel_style.border_width_right = 1
@@ -250,10 +267,10 @@ func _build_hud() -> void:
     hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(hud)
 
-    move_label = _make_label("MOVE", MOVE_VISUAL, 7)
-    attack_label = _make_label("ATTACK", ATTACK_VISUAL, 7)
-    dodge_label = _make_label("DODGE", DODGE_VISUAL, 6)
-    pause_label = _make_label("PAUSE", PAUSE_VISUAL, 5)
+    move_label = _make_label("MOVE", MOVE_VISUAL, 6)
+    attack_label = _make_label("ATTACK", ATTACK_VISUAL, 6)
+    dodge_label = _make_label("DODGE", DODGE_VISUAL, 5)
+    pause_label = _make_label("PAUSE", PAUSE_VISUAL, 4)
 
 func _make_label(text_value: String, rect: Rect2, font_size: int) -> Label:
     var label := Label.new()
@@ -266,8 +283,8 @@ func _make_label(text_value: String, rect: Rect2, font_size: int) -> Label:
     label.add_theme_font_size_override("font_size", font_size)
 
     var style := StyleBoxFlat.new()
-    style.bg_color = Color(0.018, 0.035, 0.028, 0.48)
-    style.border_color = Color(0.58, 0.72, 0.46, 0.78)
+    style.bg_color = Color(0.018, 0.035, 0.028, 0.40)
+    style.border_color = Color(0.58, 0.72, 0.46, 0.72)
     style.border_width_left = 1
     style.border_width_top = 1
     style.border_width_right = 1

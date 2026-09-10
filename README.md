@@ -3,7 +3,7 @@
 Compact commercial pixel action-RPG targeting Steam/Windows.
 
 ## Current maturity
-**0.2.2 vertical-slice mobile-playtest candidate**
+**0.2.3 vertical-slice playability candidate**
 
 Blackroot Hollow is being built release-first rather than as an open-ended prototype. The current repository contains the complete basic expedition loop, persistent progression/settings, three weapon rhythms, three Rootmark tradeoffs, dodge/iframes, a telegraphed boss attack, save backup/recovery, accessibility toggles, keyboard/mouse + controller support, a Windows export pipeline, and a touch playtest layer for phones.
 
@@ -18,10 +18,14 @@ The visuals and procedural sound effects are still development assets. The game 
 ## Browser playtest
 Open `https://ghosty-sudo.github.io/blackroot-hallow/` in a current browser.
 
-On a touchscreen phone, portrait mode now shows a rotate prompt instead of squeezing the game into a tall browser viewport. Rotate to landscape for combat. The Web shell fills the available browser viewport, the combat HUD compacts, desktop-only instructions disappear, and touch controls use smaller visuals with larger invisible hit areas.
+On a touchscreen phone, portrait mode shows a rotate prompt. In landscape, the Web canvas fills the usable safe area instead of extending under the notch/browser insets. The combat HUD is compact, desktop-only instructions are hidden, and visible controls stay small while retaining generous touch targets.
+
+Mobile controls now recover cleanly if the browser loses focus, show ready/pressed feedback, and dodge in the direction of the active movement drag. These changes remain isolated to the playtest layer.
 
 ## Automated QA
-CI performs structural checks, Godot import/runtime checks, a scripted gameplay smoke, and a Windows release export. The gameplay smoke traverses menus and core state changes and exercises real ScreenTouch/ScreenDrag event paths for movement, attack, dodge, and pause/resume. Automated QA catches obvious runtime/state regressions but does not replace human feel/readability/balance testing.
+CI performs structural checks, Godot import/runtime checks, a scripted gameplay smoke, and a Windows release export. The gameplay smoke traverses menus and core state changes; sends real ScreenTouch/ScreenDrag events; checks movement, attack, directional dodge, pause/resume, touch cleanup, enemy hit feedback/separation, death, guardian progression, and victory; and verifies desktop dodge cannot auto-repeat from a held input after cooldown.
+
+Automated QA catches obvious runtime/state regressions but does not replace human feel/readability/balance testing.
 
 ## Run locally
 1. Install Godot 4.7.2.
@@ -31,11 +35,11 @@ CI performs structural checks, Godot import/runtime checks, a scripted gameplay 
 ## Controls
 - Desktop move: WASD / Arrow keys / controller left stick
 - Desktop attack: Space / left mouse / controller A
-- Desktop dodge: Shift / controller B
+- Desktop dodge: Shift / controller B (one dodge per press)
 - Desktop pause: Escape / controller Start
 - Phone playtest move: drag inside the MOVE area
 - Phone playtest attack: hold/tap ATTACK
-- Phone playtest dodge: tap DODGE
+- Phone playtest dodge: tap DODGE; active move direction is respected
 - Phone playtest pause/resume: tap PAUSE/RESUME
 
 ## Core loop

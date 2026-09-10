@@ -19,12 +19,16 @@ html, body {
     min-height: 100dvh !important;
     overflow: hidden !important;
     overscroll-behavior: none !important;
+    touch-action: none !important;
     background: #050805 !important;
 }
 #canvas {
+    position: fixed !important;
+    left: env(safe-area-inset-left, 0px) !important;
+    top: env(safe-area-inset-top, 0px) !important;
     display: block !important;
-    width: 100vw !important;
-    height: 100dvh !important;
+    width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) !important;
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
     max-width: none !important;
     max-height: none !important;
     touch-action: none !important;
@@ -43,10 +47,10 @@ html, body {
         place-items: center;
         box-sizing: border-box;
         padding:
-            calc(24px + env(safe-area-inset-top))
-            calc(24px + env(safe-area-inset-right))
-            calc(24px + env(safe-area-inset-bottom))
-            calc(24px + env(safe-area-inset-left));
+            calc(24px + env(safe-area-inset-top, 0px))
+            calc(24px + env(safe-area-inset-right, 0px))
+            calc(24px + env(safe-area-inset-bottom, 0px))
+            calc(24px + env(safe-area-inset-left, 0px));
         text-align: center;
         font: 700 18px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: .08em;

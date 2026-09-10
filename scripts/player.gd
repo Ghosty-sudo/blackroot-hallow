@@ -13,6 +13,7 @@ var attack_cooldown := 0.0
 var hurt_cooldown := 0.0
 var dodge_timer := 0.0
 var dodge_cooldown := 0.0
+var dodge_input_locked := false
 var facing := Vector2.DOWN
 var dodge_direction := Vector2.DOWN
 var bounds := Rect2(14, 28, 292, 136)
@@ -32,6 +33,7 @@ func configure(meta: Dictionary, mark: Dictionary, chosen_weapon: Dictionary) ->
     lifesteal = float(mark.get("lifesteal", 0.0))
     weapon = chosen_weapon.duplicate(true)
     hp = max_hp
+    dodge_input_locked = false
     hp_changed.emit(hp, max_hp)
     queue_redraw()
 
@@ -39,6 +41,8 @@ func _process(delta: float) -> void:
     attack_cooldown = maxf(0.0, attack_cooldown - delta)
     hurt_cooldown = maxf(0.0, hurt_cooldown - delta)
     dodge_cooldown = maxf(0.0, dodge_cooldown - delta)
+    if dodge_input_locked and not _desktop_dodge_down():
+        dodge_input_locked = false
     knockback_velocity = knockback_velocity.move_toward(Vector2.ZERO, 700.0 * delta)
     if knockback_velocity.length() > 0.1:
         position += knockback_velocity * delta
@@ -70,15 +74,32 @@ func _movement_input() -> Vector2:
         move = joy
     return move
 
+func _desktop_dodge_down() -> bool:
+    return Input.is_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B)
+
 func try_dodge() -> bool:
+    return _begin_dodge(_movement_input(), true)
+
+func try_dodge_direction(requested_direction: Vector2) -> bool:
+    return _begin_dodge(requested_direction, false)
+
+func _begin_dodge(requested_direction: Vector2, lock_desktop_input: bool) -> bool:
     if dodge_cooldown > 0.0 or dodge_timer > 0.0:
         return false
-    var move := _movement_input()
-    dodge_direction = move.normalized() if move.length() > 0.1 else facing.normalized()
+    if lock_desktop_input and dodge_input_locked:
+        return false
+    var direction := requested_direction.normalized() if requested_direction.length() > 0.1 else facing.normalized()
+    if direction.length() <= 0.1:
+        direction = Vector2.DOWN
+    dodge_direction = direction
+    facing = direction
     dodge_timer = 0.18
     dodge_cooldown = 0.72
     hurt_cooldown = maxf(hurt_cooldown, 0.26)
+    if lock_desktop_input:
+        dodge_input_locked = true
     AudioManager.play_sfx("dodge")
+    queue_redraw()
     return true
 
 func can_attack() -> bool:
