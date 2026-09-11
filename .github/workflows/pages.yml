@@ -70,7 +70,36 @@ jobs:
         run: |
           python3 web/patch_mobile_shell.py
           grep -Fq "blackroot-mobile-landscape" build/web/index.html
-          touch build/web/.nojekyll
+
+      - name: Package immutable playtest path
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::8}"
+          PLAYTEST_DIR="build/site/playtest-${SHORT_SHA}"
+          mkdir -p "$PLAYTEST_DIR"
+          cp -a build/web/. "$PLAYTEST_DIR/"
+          touch build/site/.nojekyll
+          cat > build/site/index.html <<EOF
+          <!doctype html>
+          <html><head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+          <meta http-equiv="pragma" content="no-cache">
+          <meta http-equiv="expires" content="0">
+          <title>Blackroot Hollow Playtest</title>
+          <script>location.replace('./playtest-${SHORT_SHA}/');</script>
+          </head><body style="background:#050805;color:#f3ead8;font-family:sans-serif">
+          <p>Loading Blackroot Hollow playtest…</p>
+          <p><a href="./playtest-${SHORT_SHA}/">Open current build</a></p>
+          </body></html>
+          EOF
+          printf '%s\n' "$SHORT_SHA" > build/site/PLAYTEST_VERSION.txt
+          test -f "$PLAYTEST_DIR/index.html"
+          test -f "$PLAYTEST_DIR/index.wasm"
+          test -f "$PLAYTEST_DIR/index.pck"
+          echo "Playtest path: playtest-${SHORT_SHA}/"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -78,7 +107,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: build/web
+          path: build/site
 
   deploy:
     environment:
