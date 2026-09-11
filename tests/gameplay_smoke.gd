@@ -98,8 +98,14 @@ func _run() -> void:
     if player != null and touch != null:
         touch.set("touch_device", true)
         if touch.get("hud") == null:
-            touch.call("_build_styles")
             touch.call("_build_hud")
+        touch.call("_process", 0.0)
+        var root_ui: CanvasLayer = game.get("root_ui")
+        var desktop_panel := root_ui.get_child(0) as PanelContainer
+        _check(not desktop_panel.visible, "mobile combat removes desktop panel from battlefield")
+        var mobile_status: Variant = touch.get("status_label")
+        _check(mobile_status is Label and "HP" in (mobile_status as Label).text and "AMBER" in (mobile_status as Label).text, "mobile combat uses compact status HUD")
+
         var before_touch := player.position
         touch.call("_input", _touch_event(1, Vector2(35, 145), true))
         touch.call("_input", _drag_event(1, Vector2(67, 145)))
@@ -126,6 +132,13 @@ func _run() -> void:
         _check(Vector2(player.get("dodge_direction")).x > 0.8, "touch dodge follows active thumb direction")
         touch.call("_input", _touch_event(3, Vector2(230, 152), false))
         touch.call("_input", _touch_event(6, Vector2(67, 145), false))
+
+        game.call("_toggle_pause")
+        touch.call("_process", 0.0)
+        _check(desktop_panel.visible, "pause restores full menu panel on mobile")
+        game.call("_resume_run")
+        touch.call("_process", 0.0)
+        _check(not desktop_panel.visible, "resume returns to compact mobile combat HUD")
 
     _check(String(game.call("_guardian_kind_for_depth", 1)) == "briar_warden", "depth one uses Briar Warden")
     _check(String(game.call("_guardian_kind_for_depth", 2)) == "marrow_bell", "depth two uses Marrow Bell")
