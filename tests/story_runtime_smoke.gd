@@ -69,7 +69,7 @@ func _run() -> void:
     await process_frame
     await process_frame
     save_manager.set("save_data", original_save)
-    get_tree().paused = false
+    paused = false
 
     if failures == 0:
         print("BLACKROOT STORY RUNTIME SMOKE PASSED")
