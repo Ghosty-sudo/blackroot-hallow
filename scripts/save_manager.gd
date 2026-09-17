@@ -3,7 +3,7 @@ extends Node
 const SAVE_PATH := "user://blackroot_save.json"
 const SAVE_BACKUP_PATH := "user://blackroot_save.backup.json"
 const SETTINGS_PATH := "user://blackroot_settings.json"
-const CURRENT_SAVE_VERSION := 2
+const CURRENT_SAVE_VERSION := 3
 
 var save_data: Dictionary = _default_save()
 var settings: Dictionary = _default_settings()
@@ -21,7 +21,8 @@ func _default_save() -> Dictionary:
         "damage_bonus": 0,
         "best_depth": 0,
         "wins": 0,
-        "tutorial_seen": false
+        "tutorial_seen": false,
+        "story_flags": {}
     }
 
 func _default_settings() -> Dictionary:
@@ -67,6 +68,23 @@ func reset_progress() -> void:
     save_data = _default_save()
     save_progress()
 
+func story_flags() -> Dictionary:
+    var flags = save_data.get("story_flags", {})
+    if typeof(flags) != TYPE_DICTIONARY:
+        flags = {}
+        save_data["story_flags"] = flags
+    return flags
+
+func set_story_flag(flag: String, value: bool = true) -> bool:
+    if flag.is_empty():
+        return false
+    var flags := story_flags()
+    if bool(flags.get(flag, false)) == value:
+        return false
+    flags[flag] = value
+    save_data["story_flags"] = flags
+    return save_progress()
+
 func apply_settings() -> void:
     _apply_bus_volume("Master", float(settings.get("master_volume", 0.8)))
     _apply_bus_volume("SFX", float(settings.get("sfx_volume", 0.8)))
@@ -110,6 +128,8 @@ func _migrate_save(source: Dictionary) -> Dictionary:
     var version := int(source.get("version", 1))
     if version < 2:
         merged["tutorial_seen"] = bool(source.get("tutorial_seen", false))
+    if version < 3 or typeof(merged.get("story_flags", {})) != TYPE_DICTIONARY:
+        merged["story_flags"] = {}
     merged["version"] = CURRENT_SAVE_VERSION
     return merged
 
