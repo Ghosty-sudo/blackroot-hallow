@@ -7,6 +7,9 @@ extends RefCounted
 
 const ACTORS: Dictionary = {
     "warden": {"frames":"res://art/actors/warden/warden_frames.tres", "texture":"res://art/actors/warden/warden.png", "scale":1.0},
+    "warden_blade": {"frames":"res://art/actors/warden/blade_frames.tres", "texture":"res://art/actors/warden/blade.png", "scale":1.0},
+    "warden_pike": {"frames":"res://art/actors/warden/pike_frames.tres", "texture":"res://art/actors/warden/pike.png", "scale":1.0},
+    "warden_cleaver": {"frames":"res://art/actors/warden/cleaver_frames.tres", "texture":"res://art/actors/warden/cleaver.png", "scale":1.0},
     "thornling": {"frames":"res://art/actors/enemies/thornling_frames.tres", "texture":"res://art/actors/enemies/thornling.png", "scale":1.0},
     "brute": {"frames":"res://art/actors/enemies/brute_frames.tres", "texture":"res://art/actors/enemies/brute.png", "scale":1.0},
     "stalker": {"frames":"res://art/actors/enemies/stalker_frames.tres", "texture":"res://art/actors/enemies/stalker.png", "scale":1.0},
@@ -84,7 +87,7 @@ static func validate() -> PackedStringArray:
             for path: String in [frames, texture]:
                 if not path.is_empty() and not path.begins_with("res://art/"):
                     errors.append("%s/%s escapes art root: %s" % [category, id, path])
-    for required: String in ["warden", "briar_warden", "marrow_bell", "ember_stag", "heartwood_sentinel"]:
+    for required: String in ["warden", "warden_blade", "warden_pike", "warden_cleaver", "briar_warden", "marrow_bell", "ember_stag", "heartwood_sentinel"]:
         if not ACTORS.has(required):
             errors.append("missing required actor art id: %s" % required)
     for required: String in ["wardens_rest", "gloamgrove", "marrowroot", "embermold", "heartwood_chamber"]:
