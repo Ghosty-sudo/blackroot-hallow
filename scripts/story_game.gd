@@ -31,9 +31,10 @@ func _show_hub() -> void:
     if not speaker.is_empty() and not text.is_empty():
         info_label.text += "\n%s: %s" % [speaker, text]
     if bool(flags.get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)) and menu_box.get_child_count() > 0:
-        var first := menu_box.get_child(0)
-        if first is Button:
-            (first as Button).text = "BEGIN COVENANT PATROL"
+        for child: Node in menu_box.get_children():
+            if child is Button and "DESCEND INTO THE HOLLOW" in (child as Button).text:
+                (child as Button).text = "BEGIN COVENANT PATROL"
+                break
         footer_label.text = "Patrol the repaired covenant paths. Take only what the Hollow can shed."
 
 func _show_marks() -> void:
@@ -62,25 +63,21 @@ func _advance_encounter() -> void:
         sentinel_active = false
         _begin_sentinel_defeat()
         return
-
     var cleared_guardian := wave > 0 and wave % 4 == 0
     var cleared_depth := depth
     if cleared_guardian and cleared_depth == 3 and not bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)):
         _bank_third_guardian_and_open_heartwood()
         return
-
     super._advance_encounter()
-    if not cleared_guardian:
-        return
-    _apply_guardian_reveal(cleared_depth)
+    if cleared_guardian:
+        _apply_guardian_reveal(cleared_depth)
 
 func _apply_guardian_reveal(cleared_depth: int) -> void:
     var reveal := BlackrootStoryCatalog.guardian_reveal(cleared_depth)
     if reveal.is_empty():
         return
     var flag := String(reveal.get("flag", ""))
-    var already_seen := bool(SaveManager.story_flags().get(flag, false))
-    if already_seen:
+    if bool(SaveManager.story_flags().get(flag, false)):
         return
     SaveManager.set_story_flag(flag)
     var speaker := String(reveal.get("speaker", "ROOTVOICE"))
@@ -101,9 +98,10 @@ func _bank_third_guardian_and_open_heartwood() -> void:
     if not bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)):
         SaveManager.set_story_flag(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN)
     SaveManager.save_progress()
-    var opening: Array[Dictionary] = []
-    opening.append({"speaker": String(reveal.get("speaker", "ROOTVOICE")), "text": String(reveal.get("text", ""))})
-    opening.append({"speaker": "", "text": "The third seal opens beneath Embermold. The route does not climb toward Warden's Rest. It continues down."})
+    var opening: Array[Dictionary] = [
+        {"speaker": String(reveal.get("speaker", "ROOTVOICE")), "text": String(reveal.get("text", ""))},
+        {"speaker": "", "text": "The third seal opens beneath Embermold. The route does not climb toward Warden's Rest. It continues down."}
+    ]
     _show_story_sequence("THE THIRD SEAL BREAKS", "Briar, bone, and ember fall quiet. Something deeper answers.", opening, _begin_heartwood_entry)
 
 func _begin_heartwood_entry() -> void:
@@ -117,6 +115,7 @@ func _begin_heartwood_memories() -> void:
     _show_story_sequence("THE FIRST MEASURE", "The chamber does not explain. It remembers.", memories, _begin_sentinel)
 
 func _begin_sentinel() -> void:
+    get_tree().paused = false
     heartwood_active = true
     sentinel_active = true
     sentinel_phase_seen = 0
@@ -127,6 +126,7 @@ func _begin_sentinel() -> void:
     title_label.text = "HEARTWOOD CHAMBER"
     subtitle_label.text = "HEARTWOOD SENTINEL — Keeper of the First Measure"
     if is_instance_valid(player):
+        player.process_mode = Node.PROCESS_MODE_PAUSABLE
         player.hp = player.max_hp
         player.hp_changed.emit(player.hp, player.max_hp)
         player.position = Vector2(160, 132)
@@ -174,6 +174,7 @@ func _begin_confrontation() -> void:
     _show_story_sequence("NO CLEAN VICTORY", "Both sides still have a weapon pointed at the future.", BlackrootStoryCatalog.heartwood_confrontation(), _show_measured_cut_choice)
 
 func _show_measured_cut_choice() -> void:
+    get_tree().paused = true
     state = STATE_STORY
     _clear_menu()
     title_label.text = "THE MEASURED CUT"
@@ -213,6 +214,7 @@ func _finish_story() -> void:
     queue_redraw()
 
 func _show_story_sequence(screen_title: String, screen_subtitle: String, lines: Array[Dictionary], done: Callable) -> void:
+    get_tree().paused = true
     state = STATE_STORY
     story_screen_title = screen_title
     story_screen_subtitle = screen_subtitle
@@ -291,8 +293,17 @@ func _refresh_info() -> void:
     info_label.text = "HP %d/%d • HEARTWOOD • Unbanked %d • Relics %d • Enemies %d%s" % [player.hp, player.max_hp, run_amber, run_relics.size(), enemies.size(), suffix]
 
 func _show_victory() -> void:
-    # Kept for compatibility with tests/tools that call the old three-depth endpoint.
-    # A real story run reaches the final act through _bank_third_guardian_and_open_heartwood.
+    if bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)):
+        state = STATE_VICTORY
+        _clear_world()
+        _clear_menu()
+        title_label.text = "COVENANT PATROL COMPLETE"
+        subtitle_label.text = "The route is quieter. That does not make it harmless."
+        info_label.text = "Patrol cleared • Defeated %d • Amber secured %d • Relics %d\nThe Measured Cut remains intact; this expedition did not undo the ending." % [last_run_kills, last_run_amber_banked, last_run_relics.size()]
+        _button("PATROL AGAIN — SAME LOADOUT", _retry_same_loadout)
+        _button("RETURN TO WARDEN'S REST", _show_hub)
+        footer_label.text = "Measure is a verb."
+        return
     state = STATE_VICTORY
     _clear_world()
     _clear_menu()
@@ -323,11 +334,11 @@ func _current_environment_id() -> String:
     if heartwood_active:
         return "heartwood_chamber"
     if state == STATE_STORY:
-        if "MEMORY" in story_screen_title or "MEASURE" in story_screen_title:
+        if story_screen_title.contains("MEMORY") or story_screen_title.contains("MEASURE"):
             return "heartwood_memory"
-        if "HEARTWOOD" in story_screen_title or "SEAL" in story_screen_title:
+        if story_screen_title.contains("HEARTWOOD") or story_screen_title.contains("SEAL"):
             return "heartwood_threshold"
-        if "CUT" in story_screen_title:
+        if story_screen_title.contains("CUT"):
             return "measured_cut"
     if state == STATE_HUB:
         return "wardens_rest"
@@ -345,7 +356,8 @@ func _draw_heartwood_fallback() -> void:
     draw_rect(Rect2(13, 27, 294, 138), Color("303825"))
     for x: int in range(18, 306, 22):
         var height := 18 + ((x * 11) % 48)
-        draw_line(Vector2(x, 165), Vector2(x + ((x / 22) % 3 - 1) * 9, 165 - height), Color("667044"), 2.0)
+        var bend := (int(x / 22) % 3 - 1) * 9
+        draw_line(Vector2(x, 165), Vector2(x + bend, 165 - height), Color("667044"), 2.0)
     draw_circle(Vector2(160, 92), 38.0, Color(0.72, 0.62, 0.24, 0.08))
     draw_arc(Vector2(160, 92), 38.0, 0.0, TAU, 48, Color("887b42"), 2.0)
 
