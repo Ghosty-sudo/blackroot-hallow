@@ -14,14 +14,21 @@ func _check(condition: bool, label: String) -> void:
 
 func _run() -> void:
     await process_frame
-    var original_save: Dictionary = SaveManager.save_data.duplicate(true)
-    SaveManager.save_data["story_flags"] = {}
-    SaveManager.save_data["wins"] = 0
+    var save_manager := root.get_node_or_null("SaveManager")
+    _check(save_manager != null, "SaveManager autoload available")
+    if save_manager == null:
+        quit(1)
+        return
+    var original_save: Dictionary = Dictionary(save_manager.get("save_data")).duplicate(true)
+    var test_save: Dictionary = original_save.duplicate(true)
+    test_save["story_flags"] = {}
+    test_save["wins"] = 0
+    save_manager.set("save_data", test_save)
 
     var scene := load("res://scenes/main.tscn")
     _check(scene != null, "story-aware main scene loads")
     if scene == null:
-        SaveManager.save_data = original_save
+        save_manager.set("save_data", original_save)
         quit(1)
         return
 
@@ -30,23 +37,25 @@ func _run() -> void:
     await process_frame
     game.call("_show_hub")
     await process_frame
-    var info: Label = game.get("info_label")
-    _check(info != null and "MARA VENN:" in info.text, "new-game hub presents Mara")
+    var info = game.get("info_label")
+    _check(info is Label and "MARA VENN:" in info.text, "new-game hub presents Mara")
 
-    SaveManager.save_data["story_flags"] = {BlackrootStoryCatalog.FLAG_BRIAR_TRUTH: true}
+    test_save = Dictionary(save_manager.get("save_data")).duplicate(true)
+    test_save["story_flags"] = {BlackrootStoryCatalog.FLAG_BRIAR_TRUTH: true}
+    save_manager.set("save_data", test_save)
     game.call("_show_hub")
     await process_frame
-    _check("OLD FEN:" in info.text and "badge" in info.text.to_lower(), "Briar reveal changes hub conversation")
+    _check(info is Label and "OLD FEN:" in info.text and "badge" in info.text.to_lower(), "Briar reveal changes hub conversation")
 
     game.call("_show_victory")
     await process_frame
-    var title: Label = game.get("title_label")
-    _check(title != null and title.text == "THE THIRD SEAL BREAKS", "three-guardian clear is no longer framed as final Heartwood ending")
+    var title = game.get("title_label")
+    _check(title is Label and title.text == "THE THIRD SEAL BREAKS", "three-guardian clear is no longer framed as final Heartwood ending")
 
     game.queue_free()
     await process_frame
     await process_frame
-    SaveManager.save_data = original_save
+    save_manager.set("save_data", original_save)
 
     if failures == 0:
         print("BLACKROOT STORY RUNTIME SMOKE PASSED")
