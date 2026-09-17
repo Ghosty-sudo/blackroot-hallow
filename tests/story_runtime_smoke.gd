@@ -45,6 +45,10 @@ func _run() -> void:
 
     game.set("selected_weapon", BlackrootContentCatalog.weapons()[0])
     game.call("_start_run", BlackrootContentCatalog.rootmarks()[0])
+    # The smoke fast-forwards combat to the third guardian, so explicitly
+    # preserve the two truths a real player necessarily learned beforehand.
+    save_manager.set_story_flag(BlackrootStoryCatalog.FLAG_BRIAR_TRUTH)
+    save_manager.set_story_flag(BlackrootStoryCatalog.FLAG_MARROW_TRUTH)
     for enemy in Array(game.get("enemies")).duplicate():
         if is_instance_valid(enemy):
             enemy.call("take_damage", 9999, Vector2.ZERO)
@@ -64,8 +68,6 @@ func _run() -> void:
     var enemies: Array = game.get("enemies")
     _check(enemies.size() == 1 and String(enemies[0].get("archetype")) == "heartwood_sentinel", "final-act combat spawns Heartwood Sentinel")
 
-    # Hold normal per-frame progression while the smoke performs the same
-    # legal enemy-killed -> encounter-complete transition synchronously.
     game.set("state", 9)
     if not enemies.is_empty() and is_instance_valid(enemies[0]):
         enemies[0].call("take_damage", 9999, Vector2.ZERO)
