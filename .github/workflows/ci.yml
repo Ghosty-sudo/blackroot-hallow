@@ -71,6 +71,17 @@ jobs:
             exit 1
           fi
 
+      - name: Repeated run-state stress
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/run_state_stress.gd 2>&1 | tee godot-run-stress.log
+          grep -Fq "BLACKROOT RUN STATE STRESS PASSED" godot-run-stress.log
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT RUN STATE STRESS FAILED" godot-run-stress.log; then
+            echo "Run-state stress emitted an engine or assertion failure"
+            exit 1
+          fi
+
       - name: Export Windows release build
         shell: bash
         run: |
