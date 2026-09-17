@@ -71,6 +71,17 @@ jobs:
             exit 1
           fi
 
+      - name: Story runtime smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/story_runtime_smoke.gd 2>&1 | tee godot-story-runtime.log
+          grep -Fq "BLACKROOT STORY RUNTIME SMOKE PASSED" godot-story-runtime.log
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT STORY RUNTIME SMOKE FAILED" godot-story-runtime.log; then
+            echo "Story runtime smoke emitted an engine or assertion failure"
+            exit 1
+          fi
+
       - name: Desktop input framework smoke
         shell: bash
         run: |
