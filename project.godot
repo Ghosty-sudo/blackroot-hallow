@@ -28,6 +28,7 @@ default_bus_layout="res://default_bus_layout.tres"
 [autoload]
 SaveManager="*res://scripts/save_manager.gd"
 AudioManager="*res://scripts/audio_manager.gd"
+InputRouter="*res://scripts/input_router.gd"
 TouchPlaytest="*res://scripts/touch_playtest.gd"
 MenuFocus="*res://scripts/menu_focus.gd"
 
