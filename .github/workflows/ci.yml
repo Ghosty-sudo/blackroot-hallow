@@ -2,7 +2,7 @@ name: Blackroot Hollow CI
 
 on:
   push:
-    branches: [main, release-architecture-rebuild]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
