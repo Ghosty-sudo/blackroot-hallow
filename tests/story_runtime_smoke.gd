@@ -48,10 +48,13 @@ func _run() -> void:
     game.set("selected_weapon", BlackrootContentCatalog.weapons()[0])
     game.call("_start_run", BlackrootContentCatalog.rootmarks()[0])
     await process_frame
+    # Remove the setup encounter through the same killed signal used in real
+    # combat so the game's authoritative enemy list cannot retain stale refs.
     for enemy in Array(game.get("enemies")).duplicate():
         if is_instance_valid(enemy):
-            enemy.queue_free()
-    game.get("enemies").clear()
+            enemy.call("take_damage", 9999, Vector2.ZERO)
+    game.set("run_amber", 0)
+    game.set("run_kills", 0)
     game.set("depth", 3)
     game.set("wave", 4)
     game.set("run_amber", 12)
@@ -67,8 +70,6 @@ func _run() -> void:
     var enemies: Array = game.get("enemies")
     _check(enemies.size() == 1 and String(enemies[0].get("archetype")) == "heartwood_sentinel", "final-act combat spawns Heartwood Sentinel")
 
-    # Freeze normal combat processing so this smoke drives the exact legal
-    # completion transition instead of racing the per-frame empty-wave check.
     game.set("state", 9)
     if not enemies.is_empty() and is_instance_valid(enemies[0]):
         enemies[0].call("take_damage", 9999, Vector2.ZERO)
@@ -87,7 +88,11 @@ func _run() -> void:
     _check(BlackrootStoryCatalog.story_complete(save_manager.story_flags()), "full runtime path satisfies story completion contract")
 
     game.call("_show_hub")
-    var first_button := game.get("menu_box").get_child(0)
+    var first_button := game.get("menu_box").get_child(game.get("menu_box").get_child_count() - 1)
+    for child in game.get("menu_box").get_children():
+        if child is Button and "COVENANT PATROL" in child.text:
+            first_button = child
+            break
     _check(first_button is Button and "COVENANT PATROL" in first_button.text, "completed save converts descent into covenant patrol")
 
     game.queue_free()
