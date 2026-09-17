@@ -23,6 +23,7 @@ func _run() -> void:
     if save_manager == null:
         quit(1)
         return
+    save_manager.set("persistence_enabled", false)
     var original_save: Dictionary = Dictionary(save_manager.get("save_data")).duplicate(true)
     var test_save: Dictionary = original_save.duplicate(true)
     test_save["story_flags"] = {}
@@ -34,6 +35,7 @@ func _run() -> void:
     _check(scene != null, "story-aware main scene loads")
     if scene == null:
         save_manager.set("save_data", original_save)
+        save_manager.set("persistence_enabled", true)
         quit(1)
         return
     var game = scene.instantiate()
@@ -45,8 +47,6 @@ func _run() -> void:
 
     game.set("selected_weapon", BlackrootContentCatalog.weapons()[0])
     game.call("_start_run", BlackrootContentCatalog.rootmarks()[0])
-    # The smoke fast-forwards combat to the third guardian, so explicitly
-    # preserve the two truths a real player necessarily learned beforehand.
     save_manager.set_story_flag(BlackrootStoryCatalog.FLAG_BRIAR_TRUTH)
     save_manager.set_story_flag(BlackrootStoryCatalog.FLAG_MARROW_TRUTH)
     for enemy in Array(game.get("enemies")).duplicate():
@@ -98,6 +98,7 @@ func _run() -> void:
     await process_frame
     await process_frame
     save_manager.set("save_data", original_save)
+    save_manager.set("persistence_enabled", true)
 
     if failures == 0:
         print("BLACKROOT STORY RUNTIME SMOKE PASSED")
