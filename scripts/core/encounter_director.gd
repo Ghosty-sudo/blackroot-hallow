@@ -12,9 +12,9 @@ func randomize() -> void:
     _rng.randomize()
 
 func build(depth: int, encounter: int, biomes: Array[Dictionary]) -> Dictionary:
-    var biome_index := clampi(depth - 1, 0, biomes.size() - 1)
     if biomes.is_empty():
         return {"guardian": false, "enemies": []}
+    var biome_index := clampi(depth - 1, 0, biomes.size() - 1)
     var biome: Dictionary = biomes[biome_index]
     var guardian := encounter == ENCOUNTERS_PER_DEPTH
     if guardian:
