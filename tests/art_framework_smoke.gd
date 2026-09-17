@@ -32,7 +32,8 @@ func _run() -> void:
     root.add_child(player)
     player.configure({}, {}, BlackrootContentCatalog.weapons()[0])
     _check(player.get("art_presenter") is BlackrootArtPresenter, "Warden owns replaceable art presenter")
-    _check(bool(player.get("production_art_active")) == BlackrootArtCatalog.production_asset_available("actor", "warden_blade"), "Warden fallback tracks loadout art availability")
+    var expected_warden_art := BlackrootArtCatalog.production_asset_available("actor", "warden_blade") or BlackrootArtCatalog.production_asset_available("actor", "warden")
+    _check(bool(player.get("production_art_active")) == expected_warden_art, "Warden fallback tracks loadout/base art availability")
 
     var sentinel := BlackrootEnemy.new()
     root.add_child(sentinel)
