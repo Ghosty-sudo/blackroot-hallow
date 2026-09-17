@@ -199,12 +199,10 @@ func _run() -> void:
     _check(final_enemies.size() == 1 and String(final_enemies[0].get("archetype")) == "ember_stag", "final depth uses Ember Stag guardian")
     _clear_live_enemies(game)
     game.call("_advance_encounter")
-    await process_frame
-    _check(int(game.get("state")) == 6, "final guardian clear reaches victory")
-    _check(_menu_contains(game, "DESCEND AGAIN"), "victory offers replay")
-    var victory_info: Variant = game.get("info_label")
-    if victory_info is Label:
-        _check(not "technical loop" in (victory_info as Label).text.to_lower(), "victory has no developer-facing residue")
+    _check(int(game.get("state")) == 9, "third guardian clear opens Heartwood instead of ending story")
+    var final_title: Variant = game.get("title_label")
+    _check(final_title is Label and (final_title as Label).text == "THE THIRD SEAL BREAKS", "third guardian clear presents final-act threshold")
+    _check(bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)), "gameplay path persists Heartwood access")
 
     var exit_code := 0
     if failures == 0:
@@ -212,6 +210,7 @@ func _run() -> void:
     else:
         push_error("BLACKROOT GAMEPLAY SMOKE FAILED: %d checks failed" % failures)
         exit_code = 1
+    paused = false
     current_scene = null
     game.queue_free()
     await process_frame
