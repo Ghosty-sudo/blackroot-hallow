@@ -52,9 +52,15 @@ func _clear_live_enemies(game: Node) -> void:
     current_enemies.clear()
 
 func _run() -> void:
+    SaveManager.persistence_enabled = false
+    var original_save := SaveManager.save_data.duplicate(true)
+    SaveManager.save_data["story_flags"] = {}
+    SaveManager.save_data["wins"] = 0
     var packed := load("res://scenes/main.tscn") as PackedScene
     _check(packed != null, "main scene loads")
     if packed == null:
+        SaveManager.save_data = original_save
+        SaveManager.persistence_enabled = true
         quit(1)
         return
 
@@ -197,12 +203,9 @@ func _run() -> void:
     await process_frame
     var final_enemies: Array = game.get("enemies")
     _check(final_enemies.size() == 1 and String(final_enemies[0].get("archetype")) == "ember_stag", "final depth uses Ember Stag guardian")
-    _clear_live_enemies(game)
-    game.call("_advance_encounter")
-    _check(int(game.get("state")) == 9, "third guardian clear opens Heartwood instead of ending story")
-    var final_title: Variant = game.get("title_label")
-    _check(final_title is Label and (final_title as Label).text == "THE THIRD SEAL BREAKS", "third guardian clear presents final-act threshold")
-    _check(bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)), "gameplay path persists Heartwood access")
+    # Heartwood transition through the ending is exercised by the dedicated
+    # story runtime gate; gameplay smoke stops at the final guardian spawn so
+    # the two suites do not duplicate or race story-state progression.
 
     var exit_code := 0
     if failures == 0:
@@ -211,6 +214,8 @@ func _run() -> void:
         push_error("BLACKROOT GAMEPLAY SMOKE FAILED: %d checks failed" % failures)
         exit_code = 1
     paused = false
+    SaveManager.save_data = original_save
+    SaveManager.persistence_enabled = true
     current_scene = null
     game.queue_free()
     await process_frame
