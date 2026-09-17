@@ -4,9 +4,12 @@ root = Path(__file__).resolve().parents[1]
 required = [
     "project.godot", "scenes/main.tscn", "scripts/game.gd", "scripts/player.gd",
     "scripts/enemy.gd", "scripts/save_manager.gd", "scripts/audio_manager.gd",
-    "scripts/touch_playtest.gd", "scripts/menu_focus.gd", "tests/gameplay_smoke.gd",
+    "scripts/touch_playtest.gd", "scripts/menu_focus.gd", "scripts/art_presenter.gd",
+    "scripts/core/art_catalog.gd", "scripts/core/story_route.gd",
+    "tests/gameplay_smoke.gd", "tests/art_framework_smoke.gd", "tests/story_route_smoke.gd",
     "web/patch_mobile_shell.py", "export_presets.cfg", "default_bus_layout.tres",
-    "docs/GAME_DESIGN.md", "docs/ART_DIRECTION.md", "docs/RELEASE_ROADMAP.md",
+    "docs/GAME_DESIGN.md", "docs/ART_DIRECTION.md", "docs/ART_PIPELINE.md",
+    "docs/STORY_BIBLE.md", "docs/STORY_SCRIPT.md", "docs/RELEASE_ROADMAP.md",
     "docs/QA_MATRIX.md", "CHANGELOG.md",
 ]
 missing = [p for p in required if not (root / p).exists()]
@@ -17,7 +20,7 @@ for token in ['config/name="Blackroot Hollow"', 'AudioManager="*res://scripts/au
     assert token in project
 
 save = (root / "scripts/save_manager.gd").read_text(encoding="utf-8")
-for token in ["SAVE_BACKUP_PATH", '"sfx_volume"', "last_load_notice", "last_save_error"]:
+for token in ["SAVE_BACKUP_PATH", '"sfx_volume"', "last_load_notice", "last_save_error", '"story_flags"']:
     assert token in save
 
 audio = (root / "scripts/audio_manager.gd").read_text(encoding="utf-8")
@@ -47,6 +50,13 @@ for token in ["marrow_bell", "ember_stag", "_process_marrow_bell", "_process_emb
 touch = (root / "scripts/touch_playtest.gd").read_text(encoding="utf-8")
 for token in ["InputEventScreenTouch", "InputEventScreenDrag", "NOTIFICATION_APPLICATION_FOCUS_OUT", "try_dodge_direction", "combat_active"]:
     assert token in touch
+
+art_catalog = (root / "scripts/core/art_catalog.gd").read_text(encoding="utf-8")
+for token in ["heartwood_sentinel", "heartwood_chamber", "mara_venn", "production_asset_available"]:
+    assert token in art_catalog
+story_route = (root / "scripts/core/story_route.gd").read_text(encoding="utf-8")
+for token in ["third_seal", "heartwood_entry", "heartwood_memories", "heartwood_sentinel", "measured_cut", "covenant_patrol"]:
+    assert token in story_route
 
 smoke = (root / "tests/gameplay_smoke.gd").read_text(encoding="utf-8")
 for token in ["first guardian clear opens relic choice", "depth two guardian is mechanically distinct", "final depth uses Ember Stag guardian", "retry starts a clean run build", "BLACKROOT GAMEPLAY SMOKE PASSED"]:

@@ -25,6 +25,8 @@ var lifesteal := 0.0
 var weapon: Dictionary = {}
 var knockback_velocity := Vector2.ZERO
 var relic_names: Array[String] = []
+var art_presenter: BlackrootArtPresenter
+var production_art_active := false
 
 func configure(meta: Dictionary, mark: Dictionary, chosen_weapon: Dictionary) -> void:
     max_hp = maxi(1, 8 + int(meta.get("max_hp_bonus", 0)) + int(mark.get("hp_bonus", 0)))
@@ -38,8 +40,19 @@ func configure(meta: Dictionary, mark: Dictionary, chosen_weapon: Dictionary) ->
     relic_names.clear()
     hp = max_hp
     dodge_input_locked = false
+    _configure_art()
     hp_changed.emit(hp, max_hp)
     queue_redraw()
+
+func _configure_art() -> void:
+    if art_presenter == null:
+        art_presenter = BlackrootArtPresenter.new()
+        art_presenter.z_index = 2
+        add_child(art_presenter)
+    var loadout_id := "warden_%s" % String(weapon.get("id", "blade"))
+    production_art_active = art_presenter.configure("actor", loadout_id)
+    if not production_art_active:
+        production_art_active = art_presenter.configure("actor", "warden")
 
 func apply_relic(relic: Dictionary) -> void:
     var relic_id := String(relic.get("id", ""))
@@ -78,6 +91,7 @@ func _process(delta: float) -> void:
         dodge_timer = maxf(0.0, dodge_timer - delta)
         position += dodge_direction * 220.0 * delta
         _clamp_to_bounds()
+        _update_art_state(Vector2.ZERO)
         queue_redraw()
         return
     var move := _movement_input()
@@ -86,7 +100,21 @@ func _process(delta: float) -> void:
         facing = move
         position += move * speed * move_multiplier * delta
     _clamp_to_bounds()
+    _update_art_state(move)
     queue_redraw()
+
+func _update_art_state(move: Vector2) -> void:
+    if art_presenter == null or not production_art_active:
+        return
+    art_presenter.set_facing(facing)
+    if dodge_timer > 0.0:
+        art_presenter.play(&"dodge")
+    elif hurt_cooldown > 0.48:
+        art_presenter.play(&"hurt")
+    elif move.length() > 0.05:
+        art_presenter.play(&"move")
+    else:
+        art_presenter.play(&"idle")
 
 func _movement_input() -> Vector2:
     return InputRouter.movement_vector()
@@ -116,6 +144,8 @@ func _begin_dodge(requested_direction: Vector2, lock_desktop_input: bool) -> boo
     if lock_desktop_input:
         dodge_input_locked = true
     AudioManager.play_sfx("dodge")
+    if art_presenter != null and production_art_active:
+        art_presenter.play(&"dodge")
     queue_redraw()
     return true
 
@@ -125,6 +155,8 @@ func can_attack() -> bool:
 func perform_attack() -> Dictionary:
     attack_cooldown = float(weapon.get("cooldown", 0.32))
     AudioManager.play_sfx("attack")
+    if art_presenter != null and production_art_active:
+        art_presenter.play(&"attack")
     return {
         "center": position + facing.normalized() * float(weapon.get("reach", 13.0)),
         "radius": float(weapon.get("radius", 15.0)),
@@ -142,6 +174,8 @@ func take_damage(amount: int, source_position: Vector2 = Vector2.INF) -> void:
     if source_position != Vector2.INF:
         knockback_velocity += (position - source_position).normalized() * 95.0
     AudioManager.play_sfx("hurt")
+    if art_presenter != null and production_art_active:
+        art_presenter.play(&"death" if hp <= 0 else &"hurt")
     hurt.emit(final_damage)
     hp_changed.emit(hp, max_hp)
     if hp <= 0:
@@ -160,6 +194,9 @@ func _clamp_to_bounds() -> void:
     position.y = clampf(position.y, bounds.position.y, bounds.end.y)
 
 func _draw() -> void:
+    if production_art_active:
+        draw_ellipse_shadow()
+        return
     var flicker := hurt_cooldown > 0.0 and int(hurt_cooldown * 18.0) % 2 == 0
     var skin := Color.WHITE if flicker else Color("d9ba91")
     var cloak := Color("394b3d")
@@ -169,7 +206,6 @@ func _draw() -> void:
         skin = Color(0.78, 0.95, 0.95, 0.68)
 
     draw_ellipse_shadow()
-    # Boots and cloak make the Warden read as a character rather than a collision block.
     draw_rect(Rect2(-5, 4, 4, 3), Color("452f31"))
     draw_rect(Rect2(1, 4, 4, 3), Color("452f31"))
     draw_colored_polygon(PackedVector2Array([Vector2(-5,-4), Vector2(5,-4), Vector2(6,4), Vector2(0,7), Vector2(-6,4)]), cloak)

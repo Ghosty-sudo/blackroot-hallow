@@ -60,6 +60,17 @@ jobs:
             exit 1
           fi
 
+      - name: Art framework smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/art_framework_smoke.gd 2>&1 | tee godot-art-smoke.log
+          grep -Fq "BLACKROOT ART FRAMEWORK SMOKE PASSED" godot-art-smoke.log
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT ART FRAMEWORK SMOKE FAILED" godot-art-smoke.log; then
+            echo "Art framework smoke emitted an engine or assertion failure"
+            exit 1
+          fi
+
       - name: Story continuity smoke
         shell: bash
         run: |
@@ -68,6 +79,17 @@ jobs:
           grep -Fq "BLACKROOT STORY SMOKE PASSED" godot-story-smoke.log
           if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT STORY SMOKE FAILED" godot-story-smoke.log; then
             echo "Story smoke emitted an engine or assertion failure"
+            exit 1
+          fi
+
+      - name: Story route smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/story_route_smoke.gd 2>&1 | tee godot-story-route.log
+          grep -Fq "BLACKROOT STORY ROUTE SMOKE PASSED" godot-story-route.log
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed loading resource|BLACKROOT STORY ROUTE SMOKE FAILED" godot-story-route.log; then
+            echo "Story route smoke emitted an engine or assertion failure"
             exit 1
           fi
 
