@@ -12,6 +12,10 @@ func _check(condition: bool, label: String) -> void:
         failures += 1
         push_error("FAIL: " + label)
 
+func _advance_story(game, count: int) -> void:
+    for _i: int in range(count):
+        game.call("_advance_story_step")
+
 func _run() -> void:
     await process_frame
     var save_manager := root.get_node_or_null("SaveManager")
@@ -23,6 +27,7 @@ func _run() -> void:
     var test_save: Dictionary = original_save.duplicate(true)
     test_save["story_flags"] = {}
     test_save["wins"] = 0
+    test_save["tutorial_seen"] = true
     save_manager.set("save_data", test_save)
 
     var scene := load("res://scenes/main.tscn")
@@ -40,17 +45,54 @@ func _run() -> void:
     var info = game.get("info_label")
     _check(info is Label and "MARA VENN:" in info.text, "new-game hub presents Mara")
 
-    test_save = Dictionary(save_manager.get("save_data")).duplicate(true)
-    test_save["story_flags"] = {BlackrootStoryCatalog.FLAG_BRIAR_TRUTH: true}
-    save_manager.set("save_data", test_save)
+    game.set("selected_weapon", BlackrootContentCatalog.weapons()[0])
+    game.call("_start_run", BlackrootContentCatalog.rootmarks()[0])
+    await process_frame
+    for enemy in Array(game.get("enemies")).duplicate():
+        if is_instance_valid(enemy):
+            enemy.queue_free()
+    game.get("enemies").clear()
+    game.set("depth", 3)
+    game.set("wave", 4)
+    game.set("run_amber", 12)
+    game.call("_advance_encounter")
+    await process_frame
+    _check(int(game.get("state")) == 9, "third guardian enters story state instead of ending run")
+    _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)), "third seal persists Heartwood-open flag")
+    _check(String(game.get("title_label").text) == "THE THIRD SEAL BREAKS", "third seal gets explicit transition scene")
+
+    _advance_story(game, 8)
+    await process_frame
+    _check(int(game.get("state")) == 4, "Heartwood memories transition back into playable combat")
+    _check(bool(game.get("sentinel_active")), "Heartwood Sentinel encounter becomes active")
+    _check(int(game.get("depth")) == 4, "Heartwood uses explicit final-act depth")
+    var enemies: Array = game.get("enemies")
+    _check(enemies.size() == 1 and String(enemies[0].get("archetype")) == "heartwood_sentinel", "final-act combat spawns Heartwood Sentinel")
+
+    if not enemies.is_empty() and is_instance_valid(enemies[0]):
+        enemies[0].call("take_damage", 9999, Vector2.ZERO)
+    await process_frame
+    game.call("_advance_encounter")
+    await process_frame
+    _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_SENTINEL_DEFEATED, false)), "Sentinel defeat persists before confrontation")
+    _check(String(game.get("title_label").text) == "KEEPER YIELDS", "Sentinel defeat enters narrative resolution")
+
+    _advance_story(game, 6)
+    await process_frame
+    _check(String(game.get("title_label").text) == "THE MEASURED CUT", "confrontation reaches canonical ending action")
+    game.call("_commit_measured_cut")
+    _advance_story(game, 4)
+    _advance_story(game, 8)
+    await process_frame
+    _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)), "Measured Cut persists as launch completion flag")
+    _check(int(save_manager.get("save_data").get("wins", 0)) == 1, "story completion records one clear")
+    _check(String(game.get("title_label").text) == "COVENANT RESTORED", "epilogue reaches persistent postgame state")
+    _check(BlackrootStoryCatalog.story_complete(save_manager.story_flags()), "full runtime path satisfies story completion contract")
+
     game.call("_show_hub")
     await process_frame
-    _check(info is Label and "OLD FEN:" in info.text and "badge" in info.text.to_lower(), "Briar reveal changes hub conversation")
-
-    game.call("_show_victory")
-    await process_frame
-    var title = game.get("title_label")
-    _check(title is Label and title.text == "THE THIRD SEAL BREAKS", "three-guardian clear is no longer framed as final Heartwood ending")
+    var first_button := game.get("menu_box").get_child(0)
+    _check(first_button is Button and "COVENANT PATROL" in first_button.text, "completed save converts descent into covenant patrol")
 
     game.queue_free()
     await process_frame
