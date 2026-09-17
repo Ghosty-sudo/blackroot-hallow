@@ -1,5 +1,8 @@
 extends "res://scripts/game.gd"
 
+func current_story_stage() -> Dictionary:
+    return BlackrootStoryRoute.next_unfinished(SaveManager.story_flags())
+
 func _show_hub() -> void:
     super._show_hub()
     var voice := BlackrootStoryCatalog.hub_voice(SaveManager.story_flags(), int(SaveManager.save_data.get("wins", 0)))
@@ -44,6 +47,8 @@ func _advance_encounter() -> void:
             subtitle_label.text = "The third guardian falls. Something deeper answers."
             info_label.text += "\n%s: %s\nA sealed way beneath Embermold stirs. The Heartwood is deeper than the old maps admit." % [speaker, text]
             footer_label.text = "The expedition is clear. The story is not."
+    if cleared_depth == 3 and not bool(SaveManager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)):
+        SaveManager.set_story_flag(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN)
 
 func _show_victory() -> void:
     super._show_victory()
