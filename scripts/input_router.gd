@@ -35,11 +35,27 @@ func pause_just_pressed() -> bool:
 func _ensure_action(action: StringName, keyboard_events: Array, controller_events: Array) -> void:
     if not InputMap.has_action(action):
         InputMap.add_action(action)
-    if InputMap.action_get_events(action).is_empty():
-        for event: InputEvent in keyboard_events:
+    for event: InputEvent in keyboard_events + controller_events:
+        if not _has_equivalent_event(action, event):
             InputMap.action_add_event(action, event)
-        for event: InputEvent in controller_events:
-            InputMap.action_add_event(action, event)
+
+func _has_equivalent_event(action: StringName, candidate: InputEvent) -> bool:
+    for existing: InputEvent in InputMap.action_get_events(action):
+        if existing.get_class() != candidate.get_class():
+            continue
+        if existing is InputEventKey and candidate is InputEventKey:
+            if existing.physical_keycode == candidate.physical_keycode:
+                return true
+        elif existing is InputEventMouseButton and candidate is InputEventMouseButton:
+            if existing.button_index == candidate.button_index:
+                return true
+        elif existing is InputEventJoypadButton and candidate is InputEventJoypadButton:
+            if existing.button_index == candidate.button_index:
+                return true
+        elif existing is InputEventJoypadMotion and candidate is InputEventJoypadMotion:
+            if existing.axis == candidate.axis and signf(existing.axis_value) == signf(candidate.axis_value):
+                return true
+    return false
 
 func _key(code: Key) -> InputEventKey:
     var event := InputEventKey.new()
