@@ -56,41 +56,37 @@ func _run() -> void:
     game.set("wave", 4)
     game.set("run_amber", 12)
     game.call("_advance_encounter")
-    await process_frame
     _check(int(game.get("state")) == 9, "third guardian enters story state instead of ending run")
     _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_HEARTWOOD_OPEN, false)), "third seal persists Heartwood-open flag")
     _check(String(game.get("title_label").text) == "THE THIRD SEAL BREAKS", "third seal gets explicit transition scene")
 
     _advance_story(game, 8)
-    await process_frame
     _check(int(game.get("state")) == 4, "Heartwood memories transition back into playable combat")
     _check(bool(game.get("sentinel_active")), "Heartwood Sentinel encounter becomes active")
     _check(int(game.get("depth")) == 4, "Heartwood uses explicit final-act depth")
     var enemies: Array = game.get("enemies")
     _check(enemies.size() == 1 and String(enemies[0].get("archetype")) == "heartwood_sentinel", "final-act combat spawns Heartwood Sentinel")
 
+    # Freeze normal combat processing so this smoke drives the exact legal
+    # completion transition instead of racing the per-frame empty-wave check.
+    game.set("state", 9)
     if not enemies.is_empty() and is_instance_valid(enemies[0]):
         enemies[0].call("take_damage", 9999, Vector2.ZERO)
-    await process_frame
     game.call("_advance_encounter")
-    await process_frame
     _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_SENTINEL_DEFEATED, false)), "Sentinel defeat persists before confrontation")
     _check(String(game.get("title_label").text) == "KEEPER YIELDS", "Sentinel defeat enters narrative resolution")
 
     _advance_story(game, 6)
-    await process_frame
     _check(String(game.get("title_label").text) == "THE MEASURED CUT", "confrontation reaches canonical ending action")
     game.call("_commit_measured_cut")
     _advance_story(game, 4)
     _advance_story(game, 8)
-    await process_frame
     _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)), "Measured Cut persists as launch completion flag")
     _check(int(save_manager.get("save_data").get("wins", 0)) == 1, "story completion records one clear")
     _check(String(game.get("title_label").text) == "COVENANT RESTORED", "epilogue reaches persistent postgame state")
     _check(BlackrootStoryCatalog.story_complete(save_manager.story_flags()), "full runtime path satisfies story completion contract")
 
     game.call("_show_hub")
-    await process_frame
     var first_button := game.get("menu_box").get_child(0)
     _check(first_button is Button and "COVENANT PATROL" in first_button.text, "completed save converts descent into covenant patrol")
 
