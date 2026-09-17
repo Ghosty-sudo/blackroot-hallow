@@ -27,10 +27,12 @@ func _run() -> void:
     _check(session.begin_encounter() == 1, "run begins first encounter")
     session.record_kill(3)
     session.record_kill(2)
-    _check(session.kills == 2 and session.unbanked_amber == 5, "kill rewards accumulate")
+    session.record_kill(-50)
+    _check(session.kills == 3 and session.unbanked_amber == 5, "kill rewards clamp negative amber")
     session.encounter = BlackrootRunSession.ENCOUNTERS_PER_DEPTH
     _check(session.is_guardian_encounter(), "guardian boundary is explicit")
     _check(session.bank_depth() == 5 and session.banked_amber == 5 and session.unbanked_amber == 0, "banking transfers amber once")
+    _check(session.bank_depth() == 0 and session.banked_amber == 5, "repeated bank cannot duplicate amber")
     _check(session.advance_depth() and session.depth == 2 and session.encounter == 0, "depth transition resets encounter")
     _check(session.bind_relic("thorn_heart"), "first relic bind succeeds")
     _check(not session.bind_relic("thorn_heart"), "duplicate relic bind rejected")
@@ -41,9 +43,12 @@ func _run() -> void:
     death_session.unbanked_amber = 9
     _check(death_session.death_recovery() == 4, "death recovery floors half amber")
     _check(death_session.unbanked_amber == 0 and death_session.banked_amber == 4 and death_session.finished, "death closes run cleanly")
+    _check(death_session.death_recovery() == 0 and death_session.banked_amber == 4, "repeated death recovery cannot duplicate amber")
 
     var director := BlackrootEncounterDirector.new()
     director.seed_for_tests(1337)
+    var empty_plan := director.build(1, 1, [])
+    _check(Array(empty_plan.get("enemies", [])).is_empty() and not bool(empty_plan.get("guardian", false)), "empty content produces safe empty encounter")
     for depth: int in range(1, 4):
         for encounter: int in range(1, 5):
             var plan := director.build(depth, encounter, biomes)
