@@ -9,6 +9,7 @@ var save_data: Dictionary = _default_save()
 var settings: Dictionary = _default_settings()
 var last_load_notice: String = ""
 var last_save_error: String = ""
+var persistence_enabled := true
 
 func _ready() -> void:
     load_all()
@@ -44,13 +45,15 @@ func load_all() -> void:
 
 func save_progress() -> bool:
     last_save_error = ""
+    save_data["version"] = CURRENT_SAVE_VERSION
+    if not persistence_enabled:
+        return true
     if FileAccess.file_exists(SAVE_PATH):
         var old := FileAccess.open(SAVE_PATH, FileAccess.READ)
         if old != null:
             var backup := FileAccess.open(SAVE_BACKUP_PATH, FileAccess.WRITE)
             if backup != null:
                 backup.store_string(old.get_as_text())
-    save_data["version"] = CURRENT_SAVE_VERSION
     if not _write_json(SAVE_PATH, save_data):
         last_save_error = "Progress could not be saved."
         return false
@@ -58,6 +61,9 @@ func save_progress() -> bool:
 
 func save_settings() -> bool:
     last_save_error = ""
+    if not persistence_enabled:
+        apply_settings()
+        return true
     if not _write_json(SETTINGS_PATH, settings):
         last_save_error = "Settings could not be saved."
         return false
