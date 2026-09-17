@@ -89,18 +89,10 @@ func _process(delta: float) -> void:
     queue_redraw()
 
 func _movement_input() -> Vector2:
-    var move := Vector2.ZERO
-    if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): move.x -= 1.0
-    if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): move.x += 1.0
-    if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): move.y -= 1.0
-    if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): move.y += 1.0
-    var joy := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
-    if joy.length() > 0.25:
-        move = joy
-    return move
+    return InputRouter.movement_vector()
 
 func _desktop_dodge_down() -> bool:
-    return Input.is_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B)
+    return InputRouter.dodge_down()
 
 func try_dodge() -> bool:
     return _begin_dodge(_movement_input(), true)
