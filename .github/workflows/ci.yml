@@ -2,7 +2,7 @@ name: Blackroot Hollow CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, story-expansion]
   pull_request:
   workflow_dispatch:
 
@@ -57,6 +57,17 @@ jobs:
           grep -Fq "BLACKROOT CORE ARCHITECTURE SMOKE PASSED" godot-core-smoke.log
           if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT CORE ARCHITECTURE SMOKE FAILED" godot-core-smoke.log; then
             echo "Core architecture smoke emitted an engine or assertion failure"
+            exit 1
+          fi
+
+      - name: Story continuity smoke
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --script tests/story_smoke.gd 2>&1 | tee godot-story-smoke.log
+          grep -Fq "BLACKROOT STORY SMOKE PASSED" godot-story-smoke.log
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT STORY SMOKE FAILED" godot-story-smoke.log; then
+            echo "Story smoke emitted an engine or assertion failure"
             exit 1
           fi
 
