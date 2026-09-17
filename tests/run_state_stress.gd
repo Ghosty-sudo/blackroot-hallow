@@ -21,6 +21,11 @@ func _check(condition: bool, label: String) -> void:
         failures += 1
         push_error("FAIL: " + label)
 
+func _clear_encounter() -> void:
+    for enemy in Array(game.get("enemies")).duplicate():
+        if is_instance_valid(enemy):
+            enemy.call("take_damage", 99999, Vector2.ZERO)
+
 func _run() -> void:
     await process_frame
     save_manager = root.get_node_or_null("SaveManager")
@@ -31,6 +36,7 @@ func _run() -> void:
     original_save = Dictionary(save_manager.get("save_data")).duplicate(true)
     var test_save: Dictionary = Dictionary(save_manager.get("save_data")).duplicate(true)
     test_save["tutorial_seen"] = true
+    test_save["story_flags"] = {}
     save_manager.set("save_data", test_save)
 
     var scene := load("res://scenes/main.tscn")
@@ -65,9 +71,10 @@ func _run() -> void:
         await process_frame
         _check(not paused and int(game.get("state")) == STATE_RUN, "cycle %d resumes" % cycle)
 
+        _clear_encounter()
+        game.set("run_amber", 5)
         game.set("depth", 1)
         game.set("wave", 4)
-        game.set("run_amber", 5)
         game.call("_advance_encounter")
         await process_frame
         _check(int(game.get("depth")) == 2, "cycle %d advances depth" % cycle)
@@ -89,25 +96,37 @@ func _run() -> void:
         _check(enemies.is_empty(), "cycle %d clears enemy registry" % cycle)
         _check(not paused, "cycle %d leaves tree unpaused" % cycle)
 
-    var live_save: Dictionary = Dictionary(save_manager.get("save_data"))
-    var wins_before := int(live_save.get("wins", 0))
+    # Repeated three-depth clears are a postgame covenant-patrol lifecycle.
+    # Mark the launch story complete so these cycles test the legal replay path
+    # rather than skipping the new Heartwood finale.
+    test_save = Dictionary(save_manager.get("save_data")).duplicate(true)
+    var complete_flags: Dictionary = {}
+    for flag: String in BlackrootStoryCatalog.REQUIRED_STORY_FLAGS:
+        complete_flags[flag] = true
+    test_save["story_flags"] = complete_flags
+    save_manager.set("save_data", test_save)
+    var wins_before := int(test_save.get("wins", 0))
+
     for cycle: int in range(15):
         game.set("selected_weapon", weapons[cycle % weapons.size()].duplicate(true))
         game.call("_start_run", marks[cycle % marks.size()].duplicate(true))
         await process_frame
+        _clear_encounter()
+        game.set("run_amber", 3)
+        game.set("run_kills", 0)
         game.set("depth", 3)
         game.set("wave", 4)
-        game.set("run_amber", 3)
         game.call("_advance_encounter")
         await process_frame
-        _check(int(game.get("state")) == STATE_VICTORY, "clear cycle %d reaches victory" % cycle)
-        live_save = Dictionary(save_manager.get("save_data"))
-        _check(int(live_save.get("wins", 0)) == wins_before + cycle + 1, "clear cycle %d increments wins exactly once" % cycle)
+        _check(int(game.get("state")) == STATE_VICTORY, "patrol clear %d reaches victory" % cycle)
+        _check("PATROL COMPLETE" in String(game.get("title_label").text), "patrol clear %d preserves postgame framing" % cycle)
+        var live_save: Dictionary = Dictionary(save_manager.get("save_data"))
+        _check(int(live_save.get("wins", 0)) == wins_before + cycle + 1, "patrol clear %d increments clears exactly once" % cycle)
         game.call("_retry_same_loadout")
         await process_frame
-        _check(int(game.get("state")) == STATE_RUN, "clear cycle %d replay starts" % cycle)
-        _check(int(game.get("depth")) == 1 and int(game.get("wave")) == 1, "clear cycle %d replay resets progression" % cycle)
-        _check(int(game.get("run_amber")) == 0 and int(game.get("run_kills")) == 0, "clear cycle %d resets run counters" % cycle)
+        _check(int(game.get("state")) == STATE_RUN, "patrol clear %d replay starts" % cycle)
+        _check(int(game.get("depth")) == 1 and int(game.get("wave")) == 1, "patrol clear %d replay resets progression" % cycle)
+        _check(int(game.get("run_amber")) == 0 and int(game.get("run_kills")) == 0, "patrol clear %d resets run counters" % cycle)
         game.call("_show_hub")
         await process_frame
         await process_frame
@@ -123,7 +142,7 @@ func _finish() -> void:
         await process_frame
         await process_frame
     if failures == 0:
-        print("BLACKROOT RUN STATE STRESS PASSED — %d standard cycles + 15 clear/replay cycles" % CYCLES)
+        print("BLACKROOT RUN STATE STRESS PASSED — %d standard cycles + 15 covenant-patrol clear/replay cycles" % CYCLES)
         quit(0)
     else:
         push_error("BLACKROOT RUN STATE STRESS FAILED: %d checks failed" % failures)
