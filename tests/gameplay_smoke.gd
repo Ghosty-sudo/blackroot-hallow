@@ -52,15 +52,24 @@ func _clear_live_enemies(game: Node) -> void:
     current_enemies.clear()
 
 func _run() -> void:
-    SaveManager.persistence_enabled = false
-    var original_save := SaveManager.save_data.duplicate(true)
-    SaveManager.save_data["story_flags"] = {}
-    SaveManager.save_data["wins"] = 0
+    await process_frame
+    var save_manager := root.get_node_or_null("SaveManager")
+    _check(save_manager != null, "SaveManager autoload available")
+    if save_manager == null:
+        quit(1)
+        return
+    save_manager.set("persistence_enabled", false)
+    var original_save: Dictionary = Dictionary(save_manager.get("save_data")).duplicate(true)
+    var isolated_save: Dictionary = original_save.duplicate(true)
+    isolated_save["story_flags"] = {}
+    isolated_save["wins"] = 0
+    save_manager.set("save_data", isolated_save)
+
     var packed := load("res://scenes/main.tscn") as PackedScene
     _check(packed != null, "main scene loads")
     if packed == null:
-        SaveManager.save_data = original_save
-        SaveManager.persistence_enabled = true
+        save_manager.set("save_data", original_save)
+        save_manager.set("persistence_enabled", true)
         quit(1)
         return
 
@@ -203,9 +212,6 @@ func _run() -> void:
     await process_frame
     var final_enemies: Array = game.get("enemies")
     _check(final_enemies.size() == 1 and String(final_enemies[0].get("archetype")) == "ember_stag", "final depth uses Ember Stag guardian")
-    # Heartwood transition through the ending is exercised by the dedicated
-    # story runtime gate; gameplay smoke stops at the final guardian spawn so
-    # the two suites do not duplicate or race story-state progression.
 
     var exit_code := 0
     if failures == 0:
@@ -214,8 +220,8 @@ func _run() -> void:
         push_error("BLACKROOT GAMEPLAY SMOKE FAILED: %d checks failed" % failures)
         exit_code = 1
     paused = false
-    SaveManager.save_data = original_save
-    SaveManager.persistence_enabled = true
+    save_manager.set("save_data", original_save)
+    save_manager.set("persistence_enabled", true)
     current_scene = null
     game.queue_free()
     await process_frame
