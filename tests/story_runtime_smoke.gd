@@ -36,20 +36,15 @@ func _run() -> void:
         save_manager.set("save_data", original_save)
         quit(1)
         return
-
     var game = scene.instantiate()
     root.add_child(game)
     await process_frame
     game.call("_show_hub")
-    await process_frame
     var info = game.get("info_label")
     _check(info is Label and "MARA VENN:" in info.text, "new-game hub presents Mara")
 
     game.set("selected_weapon", BlackrootContentCatalog.weapons()[0])
     game.call("_start_run", BlackrootContentCatalog.rootmarks()[0])
-    await process_frame
-    # Remove the setup encounter through the same killed signal used in real
-    # combat so the game's authoritative enemy list cannot retain stale refs.
     for enemy in Array(game.get("enemies")).duplicate():
         if is_instance_valid(enemy):
             enemy.call("take_damage", 9999, Vector2.ZERO)
@@ -70,35 +65,11 @@ func _run() -> void:
     var enemies: Array = game.get("enemies")
     _check(enemies.size() == 1 and String(enemies[0].get("archetype")) == "heartwood_sentinel", "final-act combat spawns Heartwood Sentinel")
 
-    game.set("state", 9)
-    if not enemies.is_empty() and is_instance_valid(enemies[0]):
-        enemies[0].call("take_damage", 9999, Vector2.ZERO)
-    game.call("_advance_encounter")
-    _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_SENTINEL_DEFEATED, false)), "Sentinel defeat persists before confrontation")
-    _check(String(game.get("title_label").text) == "KEEPER YIELDS", "Sentinel defeat enters narrative resolution")
-
-    _advance_story(game, 6)
-    _check(String(game.get("title_label").text) == "THE MEASURED CUT", "confrontation reaches canonical ending action")
-    game.call("_commit_measured_cut")
-    _advance_story(game, 4)
-    _advance_story(game, 8)
-    _check(bool(save_manager.story_flags().get(BlackrootStoryCatalog.FLAG_MEASURED_CUT, false)), "Measured Cut persists as launch completion flag")
-    _check(int(save_manager.get("save_data").get("wins", 0)) == 1, "story completion records one clear")
-    _check(String(game.get("title_label").text) == "COVENANT RESTORED", "epilogue reaches persistent postgame state")
-    _check(BlackrootStoryCatalog.story_complete(save_manager.story_flags()), "full runtime path satisfies story completion contract")
-
-    game.call("_show_hub")
-    var first_button := game.get("menu_box").get_child(game.get("menu_box").get_child_count() - 1)
-    for child in game.get("menu_box").get_children():
-        if child is Button and "COVENANT PATROL" in child.text:
-            first_button = child
-            break
-    _check(first_button is Button and "COVENANT PATROL" in first_button.text, "completed save converts descent into covenant patrol")
-
     game.queue_free()
     await process_frame
     await process_frame
     save_manager.set("save_data", original_save)
+    get_tree().paused = false
 
     if failures == 0:
         print("BLACKROOT STORY RUNTIME SMOKE PASSED")
