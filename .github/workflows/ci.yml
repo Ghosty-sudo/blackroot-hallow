@@ -34,14 +34,20 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --editor --quit 2>&1 | tee godot-import.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-import.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-import.log; then
+            echo "Godot import emitted an engine/parser/resource error"
+            exit 1
+          fi
 
       - name: Runtime smoke
         shell: bash
         run: |
           set -o pipefail
           godot --headless --path . --quit-after 20 2>&1 | tee godot-runtime.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-runtime.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource" godot-runtime.log; then
+            echo "Godot runtime emitted an engine/parser/resource error"
+            exit 1
+          fi
 
       - name: Core architecture smoke
         shell: bash
@@ -49,7 +55,10 @@ jobs:
           set -o pipefail
           godot --headless --path . --script tests/core_architecture_smoke.gd 2>&1 | tee godot-core-smoke.log
           grep -Fq "BLACKROOT CORE ARCHITECTURE SMOKE PASSED" godot-core-smoke.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|BLACKROOT CORE ARCHITECTURE SMOKE FAILED" godot-core-smoke.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT CORE ARCHITECTURE SMOKE FAILED" godot-core-smoke.log; then
+            echo "Core architecture smoke emitted an engine or assertion failure"
+            exit 1
+          fi
 
       - name: Desktop input framework smoke
         shell: bash
@@ -57,7 +66,10 @@ jobs:
           set -o pipefail
           godot --headless --path . --script tests/input_framework_smoke.gd 2>&1 | tee godot-input-smoke.log
           grep -Fq "BLACKROOT INPUT FRAMEWORK SMOKE PASSED" godot-input-smoke.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|BLACKROOT INPUT FRAMEWORK SMOKE FAILED" godot-input-smoke.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT INPUT FRAMEWORK SMOKE FAILED" godot-input-smoke.log; then
+            echo "Input framework smoke emitted an engine or assertion failure"
+            exit 1
+          fi
 
       - name: Automated gameplay smoke
         shell: bash
@@ -65,7 +77,10 @@ jobs:
           set -o pipefail
           godot --headless --path . --script tests/gameplay_smoke.gd 2>&1 | tee godot-gameplay-smoke.log
           grep -Fq "BLACKROOT GAMEPLAY SMOKE PASSED" godot-gameplay-smoke.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|BLACKROOT GAMEPLAY SMOKE FAILED" godot-gameplay-smoke.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT GAMEPLAY SMOKE FAILED" godot-gameplay-smoke.log; then
+            echo "Gameplay smoke emitted an engine or assertion failure"
+            exit 1
+          fi
 
       - name: Repeated run-state stress
         shell: bash
@@ -73,7 +88,10 @@ jobs:
           set -o pipefail
           godot --headless --path . --script tests/run_state_stress.gd 2>&1 | tee godot-run-stress.log
           grep -Fq "BLACKROOT RUN STATE STRESS PASSED" godot-run-stress.log
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|BLACKROOT RUN STATE STRESS FAILED" godot-run-stress.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Failed to load script|Failed to create an autoload|Failed loading resource|BLACKROOT RUN STATE STRESS FAILED" godot-run-stress.log; then
+            echo "Run-state stress emitted an engine or assertion failure"
+            exit 1
+          fi
 
       - name: Export Windows release build
         shell: bash
@@ -83,7 +101,10 @@ jobs:
           godot --headless --path . --export-release "Windows Desktop" "build/windows/BlackrootHollow.exe" 2>&1 | tee godot-windows-export.log
           test -f build/windows/BlackrootHollow.exe
           test -f build/windows/BlackrootHollow.pck
-          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-windows-export.log; then exit 1; fi
+          if grep -E "ERROR:|SCRIPT ERROR:|Parse Error:|Project export .* failed|Failed to load script|Failed loading resource" godot-windows-export.log; then
+            echo "Windows export emitted an engine/parser/resource error"
+            exit 1
+          fi
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
